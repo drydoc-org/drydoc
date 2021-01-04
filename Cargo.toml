@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+  "drydoc",
+  "drydoc-gen",
+  "drydoc-serve"
+]

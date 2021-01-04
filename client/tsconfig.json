@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "target": "ES5",
+    "module": "commonjs",
+    "outDir": "dist",
+    "jsx": "react"
+  },
+  "include": [
+    "src/**/*"
+  ]
+}
