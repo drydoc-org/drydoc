@@ -1,10 +1,9 @@
 ---
-decls:
-  - type: unit
-    id: drydoc
-    name: drydoc
-    rule:
-      name: clang
-      params:
-        path: clang_test
-    children: ~
+type: unit
+id: drydoc
+name: drydoc
+rule:
+  name: clang
+  params:
+    path: clang_test
+children: ~

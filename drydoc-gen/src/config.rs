@@ -14,7 +14,7 @@ pub struct Unit {
   pub id: Id,
   pub name: String,
   pub rule: Rule,
-  pub children: Option<Vec<Unit>>
+  pub children: Option<Vec<Decl>>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +31,7 @@ pub enum Decl {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-  pub decls: Vec<Decl>
+  pub decl: Decl
 }
 
 

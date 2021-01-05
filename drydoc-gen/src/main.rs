@@ -14,6 +14,7 @@ mod uri;
 mod generator;
 mod actor;
 mod fs;
+mod fs2;
 
 use generator::{Generators, GeneratorsMsg, GenerateError};
 
@@ -25,6 +26,7 @@ use std::pin::Pin;
 use std::iter::FromIterator;
 
 mod preprocessor;
+mod progress;
 
 #[macro_use]
 extern crate lazy_static;
@@ -44,10 +46,21 @@ pub struct GenOpts {
 
 
 
-async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>) -> Result<Bundle, GenerateError> {
+async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String) -> Result<Bundle, GenerateError> {
+  let mut sub_bundles = Vec::new();
+  if let Some(children) = unit.children {
+    for child in children {
+      sub_bundles.push(gen_decl(child, generators.clone(), prefix.clone()).await?);  
+    }
+  }
+
   match generators.get(unit.rule.name.clone()).await {
     Some(generator) => {
-      generator.generate(unit, "".to_string()).await
+      let mut bundle = generator.generate(unit.rule, prefix.clone()).await?;
+      for sub_bundle in sub_bundles {
+        bundle.merge(sub_bundle);
+      }
+      Ok(bundle)
     },
     None => {
       Err(GenerateError::InvalidParameter {
@@ -56,13 +69,12 @@ async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>) -> Result<Bundle,
       })
     }
   }
+
+  
 }
 
-fn gen_config(config: Config, generators: Addr<GeneratorsMsg>) -> Pin<Box<dyn Future<Output = tokio::io::Result<Bundle>>>> {
+fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, prefix: String) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
   Box::pin(async move {
-
-    
-
     let mut ret = Bundle {
       manifest: Manifest {
         root: Id("".to_string()),
@@ -71,22 +83,20 @@ fn gen_config(config: Config, generators: Addr<GeneratorsMsg>) -> Pin<Box<dyn Fu
       folder: fs::Folder::new()
     };
 
-    for decl in config.decls.into_iter() {
-      match decl {
-        Decl::Import(import) => {
-          let uri = uri::to_uri(import.uri.as_str());
-          let contents = fetch::fetch(&uri).await?;
-          let contents = String::from_utf8(contents.into()).unwrap();
-          let unit: Config = serde_yaml::from_str(contents.as_str()).unwrap();
-          let bundle = gen_config(unit, generators.clone()).await?;
-          ret.merge(bundle).unwrap();
-        },
-        Decl::Unit(unit) => {
-          println!("unit: {:?}", &unit);
+    match decl {
+      Decl::Import(import) => {
+        let uri = uri::to_uri(import.uri.as_str());
+        let contents = fetch::fetch(&uri).await?;
+        let contents = String::from_utf8(contents.into()).unwrap();
+        let config: Config = serde_yaml::from_str(contents.as_str()).unwrap();
+        let bundle = gen_decl(config.decl, generators.clone(), prefix).await?;
+        ret.merge(bundle).unwrap();
+      },
+      Decl::Unit(unit) => {
+        println!("unit: {:?}", &unit);
 
-          let bundle = gen_unit(unit, generators.clone()).await.unwrap();
-          ret.merge(bundle).unwrap();
-        }
+        let bundle = gen_unit(unit, generators.clone(), prefix).await?;
+        ret.merge(bundle).unwrap();
       }
     }
 
@@ -121,7 +131,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let uri = uri::to_uri(opts.config.as_str());
   let contents = fetch::fetch(&uri).await?;
   let contents = String::from_utf8(contents.into()).unwrap();
-  let config: Config = serde_yaml::from_str(contents.as_str()).unwrap();
+
+  let raw_config: serde_yaml::Value = serde_yaml::from_str(contents.as_str())?;
+  let decl: Decl = serde_yaml::from_value(preprocessor::preprocess(raw_config, std::sync::Arc::new(std::env::current_dir()?)).await?)?;
 
   log::set_logger(&Logger {
     level: log::Level::Debug
@@ -137,7 +149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
   let generators = generators.spawn();
-  let mut bundle = gen_config(config, generators.clone()).await?;
+  let mut bundle = gen_decl(decl, generators.clone(), "".to_string()).await?;
 
   println!("Add static...");
 
@@ -149,14 +161,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let mut js = fs::Folder::new();
   let bundle_path = home.join(std::path::PathBuf::from_iter(&["client", "dist", "bundle.js"]));
   println!("bundle path: {:?}", &bundle_path);
-  js.insert("bundle.js", fs::File::open(bundle_path).await.unwrap());
+  js.insert("bundle.js", fs::File::open(bundle_path).await?);
   js.insert("manifest.js", fs::VirtFile::new(manifest_js.as_bytes()));
 
   bundle.insert_entry("js", js);
-  bundle.folder.merge(&fs::Folder::read(home.join("static")).await.unwrap()).unwrap();
+  bundle.folder.merge(&fs::Folder::read(home.join("static")).await?).unwrap();
 
   println!("Writing...");
-  bundle.write_out(opts.output.as_str()).await.unwrap();
+  bundle.write_out(opts.output.as_str()).await?;
 
   println!("Wrote out");
 

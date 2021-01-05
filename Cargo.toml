@@ -3,5 +3,6 @@
 members = [
   "drydoc",
   "drydoc-gen",
-  "drydoc-serve"
+  "drydoc-serve",
+  "drydoc-rpc"
 ]

@@ -3,7 +3,7 @@ use clang::*;
 use crate::actor::{Actor, Addr, Receiver};
 
 use super::{GeneratorMsg, GenerateError};
-use crate::config::Unit;
+use crate::config::Rule;
 use crate::page::{Page, Id};
 use crate::fs::{VirtFile};
 use crate::bundle::{Bundle, Manifest};
@@ -19,7 +19,11 @@ mod model;
 
 use model::{EntityLike};
 
+use super::util::get_files;
+
 use serde::{Serialize, Deserialize};
+
+use std::iter::FromIterator;
 
 static PARAM_PATH: &'static str = "path";
 static NAME_PATH: &'static str = "name";
@@ -42,25 +46,7 @@ impl ClangGenerator {
 
 
 
-  fn get_files<P: 'static + AsRef<Path>>(path: P) -> Pin<Box<dyn Future<Output = tokio::io::Result<Vec<PathBuf>>>>> {
-    Box::pin(async move {
-      let path = path.as_ref();
-
-      if path.is_dir() {
-        let mut dir = tokio::fs::read_dir(path).await?;
-
-        let mut ret = Vec::new();
-        while let Ok(Some(entry)) = dir.next_entry().await {
-          let subpaths = Self::get_files(entry.path()).await?;
-          ret.extend_from_slice(subpaths.as_slice());
-        }
-
-        Ok(ret)
-      } else {
-        Ok(vec![ path.to_path_buf() ])
-      }
-    })
-  }
+  
 
   fn to_pages(prefix: String, symbols: &HashMap<String, model::Entity>) -> HashMap<Id, Page> {
     let mut ret = HashMap::with_capacity(symbols.len());    
@@ -71,28 +57,37 @@ impl ClangGenerator {
     ret
   }
 
-  async fn generate(unit: Unit, prefix: String) -> Result<Bundle, GenerateError> {
+  async fn generate(rule: Rule, prefix: String) -> Result<Bundle, GenerateError> {
     let clang = clang::Clang::new().unwrap();
     let index = Index::new(&clang, false, false);
 
-    let params = unit.rule.params;
+    let params = rule.params;
 
     let path = match params.get(&PARAM_PATH.to_string()) {
       Some(path) => path.clone(),
       None => return Err(GenerateError::MissingParameter(PARAM_PATH.to_string()))
     };
 
-    let name = match params.get(&NAME_PATH.to_string()) {
-      Some(name) => name.to_string(),
-      None => path.to_string()
-    };
+    let name = params
+      .get(&NAME_PATH.to_string())
+      .unwrap_or(&path);
 
-    let arguments = match params.get(&"arguments".to_string()) {
-      Some(arguments) => arguments.split(' ').collect::<Vec<&str>>(),
-      None => Vec::new()
-    };
+    let arguments = params
+      .get(&"arguments".to_string())
+      .map(|args| args.split(' ').collect::<Vec<&str>>())
+      .unwrap_or(Vec::new());
 
-    let paths = Self::get_files(path).await?;
+    lazy_static! {
+      pub static ref VALID_EXTENSIONS: HashSet<&'static str> = HashSet::from_iter(vec![
+        "h",
+        "hh",
+        "h++",
+        "hpp",
+        "hxx",
+      ]);
+    }
+
+    let paths = get_files(path.as_str(), |p| VALID_EXTENSIONS.contains(p.extension().unwrap().to_str().unwrap())).await?;
 
     let mut symbols = HashMap::new();
     let mut roots = HashSet::new();
@@ -101,8 +96,6 @@ impl ClangGenerator {
         .incomplete(true)
         .skip_function_bodies(true)
         .arguments(arguments.as_slice())
-
-       // .single_file_parse(true)
         .parse();
 
       let tu = match tu {
@@ -153,8 +146,8 @@ impl ClangGenerator {
   async fn run(self, mut rx: Receiver<GeneratorMsg>) {
     while let Some(msg) = rx.recv().await {
       match msg {
-        GeneratorMsg::Generate { unit, prefix, sender } => {
-          let _ = sender.send(Self::generate(unit, prefix).await);
+        GeneratorMsg::Generate { rule, prefix, sender } => {
+          let _ = sender.send(Self::generate(rule, prefix).await);
         }
       }
     }

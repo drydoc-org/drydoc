@@ -1,13 +1,17 @@
 use super::actor::{Actor, Addr, Receiver};
-use super::config::Unit;
+use super::config::Rule;
 
 use std::collections::HashMap;
 use tokio::sync::oneshot::{Sender, channel};
 
 use super::bundle::Bundle;
 
+use derive_more::*;
+
 pub mod copy;
 pub mod clang;
+pub mod util;
+pub mod ros;
 
 
 pub enum GeneratorsMsg {
@@ -69,15 +73,27 @@ impl Addr<GeneratorsMsg> {
     rx.await.unwrap()
   }
 }
-#[derive(Debug)]
+#[derive(Display, Debug)]
 pub enum GenerateError {
   MissingParameter(String),
+  #[display(fmt = "InvalidParameter \"{}\": {}", name, message)]
   InvalidParameter {
     name: String,
     message: String
   },
+  #[display(fmt = "Internal Error")]
   Internal(Box<dyn std::error::Error + Send>),
   Io(tokio::io::Error)
+}
+
+impl std::error::Error for GenerateError {
+  fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+    match self {
+      Self::Internal(err) => Some(err.as_ref()),
+      Self::Io(err) => Some(err),
+      _ => None
+    }
+  }
 }
 
 impl From<tokio::io::Error> for GenerateError {
@@ -88,17 +104,17 @@ impl From<tokio::io::Error> for GenerateError {
 
 pub enum GeneratorMsg {
   Generate {
-    unit: Unit,
+    rule: Rule,
     prefix: String,
     sender: Sender<Result<Bundle, GenerateError>>
   }
 }
 
 impl Addr<GeneratorMsg> {
-  pub async fn generate(&self, unit: Unit, prefix: String) -> Result<Bundle, GenerateError> {
+  pub async fn generate(&self, rule: Rule, prefix: String) -> Result<Bundle, GenerateError> {
     let (tx, rx) = channel();
     let _ = self.send(GeneratorMsg::Generate {
-      unit,
+      rule,
       prefix,
       sender: tx
     });
