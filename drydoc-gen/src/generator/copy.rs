@@ -18,6 +18,7 @@ mod renderer;
 
 static PARAM_PATH: &'static str = "path";
 static NAME_PATH: &'static str = "name";
+static HIDDEN: &'static str = "hidden";
 
 pub struct CopyGenerator {
 
@@ -34,6 +35,19 @@ impl CopyGenerator {
     let path = match rule.params.get(&PARAM_PATH.to_string()) {
       Some(path) => Path::new(path),
       None => return Err(GenerateError::MissingParameter(PARAM_PATH.to_string()))
+    };
+
+
+    println!("hidden {:?}", rule.params.get(&HIDDEN.to_string()));
+    let hidden = match rule.params.get(&HIDDEN.to_string()) {
+      Some(hidden) => match hidden.parse::<bool>() {
+        Ok(hidden) => Some(hidden),
+        Err(err) => return Err(GenerateError::InvalidParameter {
+          name: HIDDEN.to_string(),
+          message: err.to_string()
+        })
+      },
+      None => None
     };
 
     let name = match rule.params.get(&NAME_PATH.to_string()) {
@@ -56,17 +70,22 @@ impl CopyGenerator {
     let page_id = Id(format!("{}", prefix));
     let mut pages = HashMap::new();
     
+    let url = format!("{}.page", page_id);
+
     pages.insert(page_id.clone(), Page {
       id: page_id.clone(),
       content_type,
       name,
       renderer,
+      hidden,
+      resolvable: true,
       metadata: HashMap::new(),
-      children: HashSet::new()
+      children: HashSet::new(),
+      url: url.clone()
     });
 
     let mut bundle = Bundle::new(Manifest::new(page_id.clone(), pages));
-    bundle.insert_entry(format!("{}.page", page_id), File::open(path).await?);
+    bundle.insert_entry(url, File::open(path).await?);
     Ok(bundle)
   }
 

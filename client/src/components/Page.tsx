@@ -7,17 +7,24 @@ import Resolver from '../state/Resolver';
 import { State as ReduxState } from '../store';
 import { Resolve,  } from '../store/page';
 import { PAGE_BACKGROUND_COLOR } from '../style';
+import { Audio } from './renderer/Audio';
+import { Error } from './Error';
 import { Doxygen } from './renderer/Doxygen';
+import { Image } from './renderer/Image';
 import { Markdown } from './renderer/Markdown';
+import { Loading } from './renderer/Loading';
+import { StyleProps } from './doxygen/style';
+import { Video } from './renderer/Video';
 
 const Container = styled.div`
   flex: 1 1;
-  background-color: ${PAGE_BACKGROUND_COLOR};
   overflow-y: auto;
+  overflow-x: hidden;
 `;
 
-export interface PageProps {
+export interface PageProps extends StyleProps {
   page: StatePage;
+  onPageChange: (id: string, event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 interface PageState {
@@ -38,34 +45,66 @@ export class Page extends React.PureComponent<Props, State> {
 
   render() {
     const { props } = this;
+    const { page, onPageChange, style, className } = props;
+
     console.log('RENDER', props.page);
 
-    if (!props.page) return null;
+    if (!page) return (
+      <Container style={style} className={className}>
+        <Error title="Unkown Page" message={"This element does not reference a known page"} />
+      </Container>
+    )
 
-    const { page } = props;
     
 
-    if (page.state != StatePage.State.Resolved) return null;
+    if (page.state != StatePage.State.Resolved) {
+      return (
+        <Container style={style} className={className}>
+          <Loading />
+        </Container>
+      )
+    }
 
 
-    let Renderer: React.ComponentType<{ page: StatePage.Resolved }> | null = null;
+    let Renderer: React.ComponentType<{ page: StatePage.Resolved, onPageChange: (id: string, event: React.MouseEvent<HTMLDivElement>) => void }> | null = null;
     switch (page.renderer) {
-      case 'markdown': {
-        Renderer = Markdown;
-        break;
-      }
       case 'clang': {
         Renderer = Doxygen;
         break;
       }
+      case 'audio': {
+        Renderer = Audio;
+        break;
+      }
+      case 'image': {
+        Renderer = Image;
+        break;
+      }
+      case 'video': {
+        Renderer = Video;
+        break;
+      }
     }
 
-    if (!Renderer) return null;
+    switch (page.content_type) {
+      case 'text/markdown': {
+        Renderer = Markdown;
+        break;
+      }
+    }
+
+    if (!Renderer) {
+      return (
+        <Container style={style} className={className}>
+          <Error title="Unable to render content" message={`Unable to find renderer "${page.renderer}" (content-type: "${page.content_type}")`} />
+        </Container>
+      )
+    }
 
 
     return (
-      <Container>
-        <Renderer page={page} />
+      <Container style={style} className={className}>
+        <Renderer page={page} onPageChange={onPageChange} />
       </Container>
     );
   }

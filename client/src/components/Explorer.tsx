@@ -10,15 +10,23 @@ import Dict from '../Dict';
 import { isPropertyAccessExpression } from 'typescript';
 import { Section } from './doxygen/Section';
 
+import subSectionHeader from './doxygen/sub-section-header';
+import { MONOSPACE_FONT_FAMILY } from './doxygen/style';
+
+
 const ExplorerItemContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
+  :nth-child(even) {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
   :hover {
     background-color: rgba(255, 255, 255, 0.1);
   }
   cursor: pointer;
   transition: background-color 0.25s;
+  
 `;
 
 const ExplorerSectionContainer = styled.div`
@@ -30,7 +38,8 @@ const ExplorerTitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  margin: 8px;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.1);
 `;
 
 const ItemText = styled.div`
@@ -78,16 +87,17 @@ export class ExplorerTitle extends React.PureComponent<ExplorerTitleProps> {
 interface ExplorerItemProps {
   icon?: string;
   text: string;
-  expanded: boolean;
+  monospace?: boolean;
   onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 export class ExplorerItem extends React.Component<ExplorerItemProps> {
   render() {
     const { props } = this;
+    const { monospace } = props;
     return (
       <ExplorerItemContainer onClick={props.onClick}>
-        <ItemText style={{ opacity: props.expanded ? 1 : 0 }}>{props.text}</ItemText>
+        <ItemText style={{ fontFamily: monospace ? MONOSPACE_FONT_FAMILY : 'inherit' }}>{props.text}</ItemText>
       </ExplorerItemContainer>
     )
   }
@@ -104,8 +114,14 @@ const SECTION_NAMES = {
   namespace: "Namespaces",
   class: "Classes",
   struct: "Structs",
-  function: "Functions"
+  function: "Functions",
+  variable: "Variables"
 };
+
+const shouldMonospaceName = (page: Page) => {
+  return page && page.content_type.startsWith('clang');
+};
+
 
 export class ExplorerSection extends React.Component<ExplorerSectionProps> {
   private onClick_ = (id: string) => (event: React.MouseEvent<HTMLDivElement>) => {
@@ -114,11 +130,12 @@ export class ExplorerSection extends React.Component<ExplorerSectionProps> {
 
   render() {
     const { props } = this;
+    const { id, pages } = props;
     return (
       <ExplorerSectionContainer>
-        <SectionText>{SECTION_NAMES[props.id] || props.id}</SectionText>
-        {props.pages.map(page => (
-          <ExplorerItem onClick={this.onClick_(page.id)} text={page.name} expanded />
+        <SectionText>{SECTION_NAMES[id] || id}</SectionText>
+        {pages.map(page => (
+          <ExplorerItem onClick={this.onClick_(page.id)} text={page.name} monospace={shouldMonospaceName(page)} />
         ))}
       </ExplorerSectionContainer>
     )
@@ -179,8 +196,6 @@ export class Explorer extends React.Component<Props, State> {
   };
 
   private onBack_ = (event: React.MouseEvent<any>) => {
-    
-    console.log('BACK', this.props.parentId);
     this.props.onPageChange(this.props.parentId || '', event)
   }
 
@@ -189,10 +204,10 @@ export class Explorer extends React.Component<Props, State> {
 
     if (!props.childPages) return null;
 
-    console.log('props', props);
-
     const sections: Dict<Page[]> = {};
     Dict.forEach(props.childPages, page => {
+      if (page.hidden) return;
+
       const section = (page.metadata || {})['section'] || '';
       if (section in sections) {
         sections[section].push(page);
@@ -205,7 +220,7 @@ export class Explorer extends React.Component<Props, State> {
 
     return (
       <Container
-        style={{ width: '256px' }}
+        style={{ width: '350px' }}
         onMouseEnter={this.onMouseEnter_}
         onMouseLeave={this.onMouseLeave_}
       >
@@ -221,7 +236,6 @@ export class Explorer extends React.Component<Props, State> {
 }
 
 export default connect((state: ReduxState, ownProps: Props) => {
-  console.log('parent', state.page.byParent[ownProps.page.id]);
   return {
     parentId: state.page.byParent[ownProps.page.id],
     childPages: Dict.subset(state.page.pages, ownProps.page.children)

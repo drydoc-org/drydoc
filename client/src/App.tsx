@@ -63,17 +63,21 @@ export class App extends React.Component<Props, State> {
 
   private onPageChange_ = (id: string, event: React.MouseEvent<HTMLDivElement>) => {
     this.props.goTo(id);
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   render() {
     const { props, state } = this;
+
+    document.title = props.page ? props.page.name : 'Drydoc';
 
     return (
       <Container>
         <NavBar onPageChange={this.onPageChange_} page={props.page} />
         <Row>
           <Explorer onPageChange={this.onPageChange_} page={props.page} />
-          <Page page={props.page} />
+          <Page onPageChange={this.onPageChange_} page={props.page} />
         </Row>
       </Container>
     )
@@ -82,7 +86,6 @@ export class App extends React.Component<Props, State> {
 
 export default connect((state: ReduxState, ownProps: Props) => {
   const pageId = state.router.location.hash.slice(2);
-  console.log("PAGE ID", pageId, state.router);
   return {
     page: state.page.pages[pageId]
   };
@@ -93,8 +96,6 @@ export default connect((state: ReduxState, ownProps: Props) => {
       id
     } as Resolve),
     goTo: (id: string) => {
-      console.log("REPLACE", id);
-
       dispatch(push(`#/${id}`));
     }
   }

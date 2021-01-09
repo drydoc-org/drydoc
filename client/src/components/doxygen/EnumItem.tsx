@@ -3,35 +3,23 @@ import styled from 'styled-components';
 
 import Page from '../../state/Page';
 import { Comment } from './Comment';
-import { Variable as VariableModel } from './model';
+import { Enum as EnumModel } from './model';
 import { ItemProps } from './Item';
 import { LanguageKeyword, Title } from './style';
 import { TypeItem } from './TypeItem';
 import { ParamItem } from './ParamItem';
 import { Accessibility } from './Accessibility';
 
-export interface VariableItemProps extends ItemProps<VariableModel> {
+export interface EnumItemProps extends ItemProps<EnumModel> {
 }
 
 const Container = styled.div`
   width: 100%;
 `;
 
-type Props = VariableItemProps;
+type Props = EnumItemProps;
 
-const LANGUAGE_KEYWORDS = new Set<string>([
-  'void',
-  'int',
-  'char',
-  'long',
-  'bool',
-  'short',
-  'unsigned',
-  'signed',
-  'const'
-]);
-
-export class VariableItem extends React.PureComponent<Props> {
+export class EnumItem extends React.PureComponent<Props> {
   constructor(props: Props) {
     super(props);
 
@@ -45,7 +33,7 @@ export class VariableItem extends React.PureComponent<Props> {
 
     return (
       <Container>
-        <Title style={{ fontFamily: "'Fira Code', monospace" }} depth={depth}><TypeItem onPageChange={onPageChange} symbols={symbols} model={model.ty} /> {display_name}</Title>
+        <Title style={{ fontFamily: "'Fira Code', monospace" }} depth={depth}><LanguageKeyword>enum</LanguageKeyword> {display_name}</Title>
         {comment ? <Comment comment={comment} /> : undefined}
       </Container>
     );

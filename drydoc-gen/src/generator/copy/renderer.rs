@@ -15,7 +15,19 @@ macro_rules! map(
 lazy_static! {
   pub static ref RENDERER_MAPPINGS: HashMap<&'static str, &'static str> = map! {
     "md" => "text/markdown",
-    "markdown" => "text/markdown"
+    "markdown" => "text/markdown",
+    "mp4" => "video",
+    "mov" => "video",
+    "mp3" => "audio",
+    "flac" => "audio",
+    "ogg" => "audio",
+    "wav" => "audio",
+    "png" => "image",
+    "apng" => "image",
+    "jpeg" => "image",
+    "jpg" => "image",
+    "bmp" => "image",
+    "gif" => "image"
   };
 }
 

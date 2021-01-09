@@ -9,7 +9,6 @@ use std::{collections::HashMap};
 use clap::Clap;
 use config::{Config, Decl, Unit};
 use page::Id;
-use url::Url;
 mod uri;
 mod generator;
 mod actor;
@@ -50,15 +49,15 @@ async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String) -
   let mut sub_bundles = Vec::new();
   if let Some(children) = unit.children {
     for child in children {
-      sub_bundles.push(gen_decl(child, generators.clone(), prefix.clone()).await?);  
+      sub_bundles.push(gen_decl(child, generators.clone(), format!("{}{}", &prefix, &unit.id)).await?);  
     }
   }
 
   match generators.get(unit.rule.name.clone()).await {
     Some(generator) => {
-      let mut bundle = generator.generate(unit.rule, prefix.clone()).await?;
+      let mut bundle = generator.generate(unit.rule, format!("{}{}", &prefix, &unit.id)).await?;
       for sub_bundle in sub_bundles {
-        bundle.merge(sub_bundle);
+        bundle.merge(sub_bundle).unwrap();
       }
       Ok(bundle)
     },
@@ -75,32 +74,19 @@ async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String) -
 
 fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, prefix: String) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
   Box::pin(async move {
-    let mut ret = Bundle {
-      manifest: Manifest {
-        root: Id("".to_string()),
-        pages: HashMap::new()
-      },
-      folder: fs::Folder::new()
-    };
-
     match decl {
       Decl::Import(import) => {
         let uri = uri::to_uri(import.uri.as_str());
         let contents = fetch::fetch(&uri).await?;
         let contents = String::from_utf8(contents.into()).unwrap();
         let config: Config = serde_yaml::from_str(contents.as_str()).unwrap();
-        let bundle = gen_decl(config.decl, generators.clone(), prefix).await?;
-        ret.merge(bundle).unwrap();
+        Ok(gen_decl(config.decl, generators.clone(), prefix).await?)
       },
       Decl::Unit(unit) => {
         println!("unit: {:?}", &unit);
-
-        let bundle = gen_unit(unit, generators.clone(), prefix).await?;
-        ret.merge(bundle).unwrap();
+        Ok(gen_unit(unit, generators.clone(), prefix).await?)
       }
     }
-
-    Ok(ret)
   })
 }
 
@@ -137,7 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   log::set_logger(&Logger {
     level: log::Level::Debug
-  });
+  }).unwrap();
 
   log::set_max_level(log::LevelFilter::Debug);
 

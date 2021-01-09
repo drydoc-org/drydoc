@@ -5,6 +5,10 @@
   "main": "dist/index.js",
   "author": "Semio AI, Inc.",
   "license": "BSD 3 Clause",
+  "scripts": {
+    "watch": "webpack -c config/webpack.config.js --watch",
+    "build": "webpack -c config/webpack.config.js"
+  },
   "dependencies": {
     "@types/dompurify": "^2.0.4",
     "@types/marked": "^1.2.1",
@@ -21,9 +25,11 @@
     "marked": "^1.2.7",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-markdown": "^5.0.3",
     "react-redux": "^7.2.2",
     "react-router": "^5.2.0",
     "react-router-dom": "^5.2.0",
+    "react-syntax-highlighter": "^15.4.3",
     "redux": "^4.0.5",
     "styled-components": "^5.2.1",
     "ts-loader": "^8.0.12",

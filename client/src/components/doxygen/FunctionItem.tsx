@@ -46,20 +46,29 @@ export class FunctionItem extends React.Component<Props, State> {
   render() {
     const { props } = this;
 
-    const { model, depth, symbols } = props;
+    const { model, depth, symbols, onPageChange } = props;
     
-    const { comment, display_name } = model;
+    const { comment, display_name, is_ctor, is_dtor } = model;
+
+    const paramLength = model.params.map(p => p.name.length + p.ty.display_name.length).reduce((a, b) => a + b, 0);
+    const multiline = paramLength > 100;
+
+    const paramStyle: React.CSSProperties = multiline ? {
+      display: 'block',
+      marginLeft: '10px',
+    } : {};
 
     const params: JSX.Element[] = model.params.map((param, i) => (
       <>
-        <ParamItem key={i} model={param} symbols={symbols} />
-        {i !== model.params.length - 1 ? ', ' : ''}
+        <ParamItem style={paramStyle} onPageChange={onPageChange} key={i} model={param} symbols={symbols} comma={i !== model.params.length - 1} />
       </>
     ));
 
+    const retTyComponent = (!is_ctor && !is_dtor) ? <TypeItem onPageChange={onPageChange} symbols={symbols} model={model.ret_ty} /> : undefined;
+
     return (
       <Container>
-        <Title style={{ fontFamily: "'Fira Code', monospace" }} depth={depth}><Accessibility model={model.accessibility}/> <TypeItem symbols={symbols} model={model.ret_ty} /> {display_name}({params})</Title>
+        <Title style={{ fontFamily: "'Fira Code', monospace" }} depth={depth}><Accessibility model={model.accessibility}/> {retTyComponent} {display_name}({params})</Title>
         {comment ? <Comment comment={comment} /> : undefined}
       </Container>
     );

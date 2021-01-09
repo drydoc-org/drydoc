@@ -179,7 +179,7 @@ impl<'tu> Mangler<'tu> {
   }
 
   fn is_fs_unsafe(c: char) -> bool {
-    c == '>' || c == '<' || c == '*' || c == '\\' || c == '/'
+    c == '>' || c == '<' || c == '*' || c == '\\' || c == '/' || c == '~'
   }
 
   fn to_fs_safe(string: String) -> String {
@@ -240,7 +240,7 @@ impl<'tu> Mangler<'tu> {
 }
 
 pub trait EntityLike {
-  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>) -> HashSet<String>;
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String>;
   fn to_page<P: AsRef<str>>(&self, prefix: P, symbols: &HashMap<String, Entity>) -> Page;
   fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>>;
   fn linked(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>>;
@@ -288,7 +288,7 @@ impl EntityLike for Namespace {
     Some(ret)
   }
 
-  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>) -> HashSet<String> {
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
     assert_eq!(entity.get_kind(), clang::EntityKind::Namespace);
     let display_name = entity.get_display_name().unwrap();
 
@@ -299,22 +299,25 @@ impl EntityLike for Namespace {
     }
 
     mangler.push(entity);
-    let name = mangler.name();
+    let name = format!("{}{}", prefix, mangler.name());
+    
 
     let mut children = HashSet::new();
     for entity in entity.get_children() {
-      children.extend(Entity::visit(entity, mangler, symbols));
+      // println!("namespace {} -> {}", &name, &entity.get_name().unwrap());
+      children.extend(Entity::visit(entity, mangler, symbols, prefix));
     }
 
     ret.insert(name.clone());
 
     if let Some(Entity::Namespace(ns)) = symbols.get_mut(&name) {
       ns.children.extend(children);
+      mangler.pop();
       return ret;
     }
     
     let namespace = Namespace {
-      name: mangler.name(),
+      name: name.clone(),
       display_name,
       comment: entity.get_parsed_comment().map(|c| c.get_children().into_iter().map(|c| c.into()).collect()),
       children
@@ -328,14 +331,14 @@ impl EntityLike for Namespace {
   }
 
   fn to_page<P: AsRef<str>>(&self, prefix: P, _: &HashMap<String, Entity>) -> Page {
-    println!("PAGE namespace children {:?}", &self.children);
     Page::builder()
-      .id(format!("{}{}", prefix.as_ref(), self.name))
+      .id(self.name.clone())
       .name(self.display_name.clone())
       .renderer("clang")
-      .content_type("clang/entity")
+      .content_type("clang/namespace")
       .meta("section", "namespace")
       .children(self.children.iter())
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
@@ -589,7 +592,8 @@ pub struct Type {
   display_name: String,
   name: Option<String>,
   const_qualified: bool,
-  pointee: Option<Box<Type>>
+  pointee: Option<Box<Type>>,
+  elaborated: Option<Box<Type>>
 }
 
 impl Type {
@@ -609,10 +613,10 @@ impl Type {
   }
 }
 
-impl<'tu> From<clang::Type<'tu>> for Type {
-  fn from(value: clang::Type<'tu>) -> Self {
+impl Type {
+  fn from<'tu>(value: clang::Type<'tu>, prefix: &String) -> Self {
     let name = if value.get_kind() == clang::TypeKind::Record {
-      Some(Mangler::lookup_name(value.get_declaration().unwrap()))
+      Some(format!("{}{}", prefix, Mangler::lookup_name(value.get_declaration().unwrap())))
     } else {
       None
     };
@@ -622,7 +626,8 @@ impl<'tu> From<clang::Type<'tu>> for Type {
       name,
       kind: value.get_kind().into(),
       const_qualified: value.is_const_qualified(),
-      pointee: value.get_pointee_type().map(|t| Box::new(t.into()))
+      pointee: value.get_pointee_type().map(|t| Box::new(Type::from(t, prefix))),
+      elaborated: value.get_elaborated_type().map(|t| Box::new(Type::from(t, prefix)))
     }
   }
 }
@@ -636,12 +641,12 @@ pub struct Param {
 }
 
 impl Param {
-  pub fn new<'tu>(entity: clang::Entity<'tu>) -> Self {
+  pub fn new<'tu>(entity: clang::Entity<'tu>, prefix: &String) -> Self {
     assert_eq!(entity.get_kind(), clang::EntityKind::ParmDecl);
 
     Self {
       name: entity.get_name().unwrap_or("".to_string()),
-      ty: entity.get_type().unwrap().into()
+      ty: Type::from(entity.get_type().unwrap(), prefix)
     }
   }
 }
@@ -656,8 +661,24 @@ pub enum TemplateArg {
   Pack,
   Template,
   TemplateExpansion,
-  Integral(i64, i64),
+  Integral(i64, u64),
   Type(Type)
+}
+
+impl TemplateArg {
+  fn from<'tu>(value: clang::TemplateArgument<'tu>, prefix: &String) -> Self {
+    match value {
+      clang::TemplateArgument::Declaration => Self::Declaration,
+      clang::TemplateArgument::Expression => Self::Expression,
+      clang::TemplateArgument::Null => Self::Null,
+      clang::TemplateArgument::Nullptr => Self::Nullptr,
+      clang::TemplateArgument::Pack => Self::Pack,
+      clang::TemplateArgument::Template => Self::Template,
+      clang::TemplateArgument::TemplateExpansion => Self::TemplateExpansion,
+      clang::TemplateArgument::Integral(x, y) => Self::Integral(x, y),
+      clang::TemplateArgument::Type(ty) => Self::Type(Type::from(ty, prefix))
+    }
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -705,7 +726,9 @@ pub struct Function {
   params: Vec<Param>,
   ret_ty: Type,
   visibility: Option<Visibility>,
-  accessibility: Option<Accessibility>
+  accessibility: Option<Accessibility>,
+  is_ctor: bool,
+  is_dtor: bool
 }
 
 impl EntityLike for Function {
@@ -726,29 +749,32 @@ impl EntityLike for Function {
 
   fn to_page<P: AsRef<str>>(&self, prefix: P, symbols: &HashMap<String, Entity>) -> Page {
     Page::builder()
-      .id(format!("{}{}", prefix.as_ref(), self.name))
+      .id(self.name.clone())
       .name(self.display_name.clone())
       .renderer("clang")
-      .content_type("clang/entity")
+      .content_type("clang/function")
       .meta("section", "function")
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
 
-  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>) -> HashSet<String> {
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
     mangler.push(entity);
-    let name = mangler.name();
+    let name = format!("{}{}", prefix, mangler.name());
 
     
     let function = Function {
       name: name.clone(),
-      ret_ty: entity.get_result_type().unwrap().into(),
+      ret_ty: Type::from(entity.get_result_type().unwrap(), prefix),
       display_name: entity.get_name().unwrap(),
       comment: entity.get_parsed_comment().map(|c| c.get_children().into_iter().map(|c| c.into()).collect()),
-      template_args: None,
+      template_args: entity.get_template_arguments().map(|t| t.into_iter().map(|a| TemplateArg::from(a, prefix)).collect()),
       visibility: entity.get_visibility().map(|v| v.into()),
       accessibility: entity.get_accessibility().map(|v| v.into()),
-      params: entity.get_arguments().unwrap().into_iter().map(|c| Param::new(c)).collect()
+      params: entity.get_arguments().map(|a| a.into_iter().map(|c| Param::new(c, prefix)).collect()).unwrap_or(vec![]),
+      is_ctor: entity.get_kind() == clang::EntityKind::Constructor, 
+      is_dtor: entity.get_kind() == clang::EntityKind::Destructor, 
     };
 
     mangler.pop();
@@ -793,39 +819,36 @@ impl EntityLike for Class {
 
   fn to_page<P: AsRef<str>>(&self, prefix: P, symbols: &HashMap<String, Entity>) -> Page {
     Page::builder()
-      .id(format!("{}{}", prefix.as_ref(), self.name))
+      .id(self.name.clone())
       .name(self.display_name.clone())
       .renderer("clang")
-      .content_type("clang/entity")
+      .content_type(if self.is_struct { "clang/struct" } else { "clang/class" })
       .meta("section", if self.is_struct { "struct" } else { "class" })
       .children(self.children.iter())
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
 
-  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>) -> HashSet<String> {
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
     mangler.push(entity);
-    let name = mangler.name();
-    
-
+    let name = format!("{}{}", prefix, mangler.name());
     
     let mut children = HashSet::new();
     for child in entity.get_children() {
-      children.extend(Entity::visit(child, mangler, symbols))
+      children.extend(Entity::visit(child, mangler, symbols, prefix))
     }
 
     let class = Class {
       is_struct: entity.get_kind() == clang::EntityKind::StructDecl,
       name: name.clone(),
-      display_name: entity.get_display_name().unwrap(),
+      display_name: entity.get_display_name().unwrap_or(name.clone()),
       comment: entity.get_parsed_comment().map(|c| c.get_children().into_iter().map(|c| c.into()).collect()),
-      template_args: None,
+      template_args: entity.get_template_arguments().map(|t| t.into_iter().map(|a| TemplateArg::from(a, prefix)).collect()),
       children
     };
 
     mangler.pop();
-
-    // println!("{:?} {:?}", &name, );
 
     symbols.insert(name.clone(), Entity::Class(class));
 
@@ -856,23 +879,25 @@ impl EntityLike for Variable {
 
   fn to_page<P: AsRef<str>>(&self, prefix: P, symbols: &HashMap<String, Entity>) -> Page {
     Page::builder()
-      .id(format!("{}{}", prefix.as_ref(), self.name))
+      .id(self.name.clone())
       .name(self.display_name.clone())
       .renderer("clang")
-      .content_type("clang/entity")
+      .content_type("clang/variable")
       .meta("section", "variable")
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
 
-  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>) -> HashSet<String> {
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
     mangler.push(entity);
-    let name = mangler.name();
+    let name = format!("{}{}", prefix, mangler.name());
 
+    
     let variable = Variable {
       name: name.clone(),
       display_name: entity.get_display_name().unwrap(),
-      ty: entity.get_type().unwrap().into(),
+      ty: Type::from(entity.get_type().unwrap(), prefix),
       accessibility: entity.get_accessibility().map(|v| v.into()),
       visibility: entity.get_visibility().map(|v| v.into()),
       comment: entity.get_parsed_comment().map(|c| c.get_children().into_iter().map(|c| c.into()).collect()),
@@ -891,12 +916,175 @@ impl EntityLike for Variable {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct Typedef {
+  name: String,
+  display_name: String,
+  ty: Type
+}
+
+impl EntityLike for Typedef {
+  fn linked(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+    self.ty.linked(symbols)
+  }
+
+  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+    None
+  }
+  
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
+    mangler.push(entity);
+    let name = format!("{}{}", prefix, mangler.name());
+
+    let defn = Typedef {
+      display_name: entity.get_display_name().unwrap(),
+      name: name.clone(),
+      ty: Type::from(entity.get_typedef_underlying_type().unwrap(), prefix)
+    };
+
+    symbols.insert(name.clone(), Entity::Typedef(defn));
+
+    mangler.pop();
+
+    let mut ret = HashSet::new();
+    ret.insert(name);
+    ret
+  }
+
+  fn to_page<P: AsRef<str>>(&self, prefix: P, symbols: &HashMap<String, Entity>) -> Page {
+    Page::builder()
+      .id(self.name.clone())
+      .name(self.display_name.clone())
+      .renderer("clang")
+      .content_type("clang/typedef")
+      .meta("section", "typedef")
+      .url(format!("{}.page", &self.name))
+      .build()
+      .unwrap()
+  }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EnumValue {
+  name: String,
+  display_name: String,
+  value: Option<String>,
+  comment: Option<Vec<CommentChild>>
+}
+
+impl EntityLike for EnumValue {
+  fn linked(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+    None
+  }
+
+  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+    None
+  }
+
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
+    assert_eq!(entity.get_kind(), clang::EntityKind::EnumConstantDecl);
+    mangler.push(entity);
+    let name = format!("{}{}", prefix, mangler.name());
+
+
+    let defn = Self {
+      display_name: "".to_string(),
+      name: name.clone(),
+      comment: entity.get_parsed_comment().map(|c| c.get_children().into_iter().map(|c| c.into()).collect()),
+      value: None
+    };
+
+    symbols.insert(name.clone(), Entity::EnumValue(defn));
+
+    mangler.pop();
+
+    let mut ret = HashSet::new();
+    ret.insert(name);
+    ret
+  }
+
+  fn to_page<P: AsRef<str>>(&self, prefix: P, symbols: &HashMap<String, Entity>) -> Page {
+    Page::builder()
+      .id(self.name.clone())
+      .name(self.display_name.clone())
+      .renderer("clang")
+      .content_type("clang/enum-value")
+      .meta("section", "enum-value")
+      .url(format!("{}.page", &self.name))
+      .build()
+      .unwrap()
+  }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Enum {
+  name: String,
+  display_name: Option<String>,
+  children: HashSet<String>,
+  comment: Option<Vec<CommentChild>>
+}
+
+impl EntityLike for Enum {
+  fn linked(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+    None
+  }
+
+  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+    Some(self.children.clone())
+  }
+  
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
+    mangler.push(entity);
+    let name = format!("{}{}", prefix, mangler.name());
+
+    println!("{:?}", &entity);
+
+
+    let mut children = HashSet::new();
+    for child in entity.get_children() {
+      println!("{:?}", &child);
+      children.extend(EnumValue::visit(child, mangler, symbols, prefix));
+    }
+
+    let defn = Self {
+      display_name: entity.get_display_name(),
+      name: name.clone(),
+      comment: entity.get_parsed_comment().map(|c| c.get_children().into_iter().map(|c| c.into()).collect()),
+      children
+    };
+
+    symbols.insert(name.clone(), Entity::Enum(defn));
+
+    mangler.pop();
+
+    let mut ret = HashSet::new();
+    ret.insert(name);
+    ret
+  }
+
+  fn to_page<P: AsRef<str>>(&self, prefix: P, symbols: &HashMap<String, Entity>) -> Page {
+    Page::builder()
+      .id(self.name.clone())
+      .name(self.display_name.clone().unwrap_or("Anonymous".to_string()))
+      .renderer("clang")
+      .content_type("clang/enum")
+      .meta("section", "enum")
+      .url(format!("{}.page", &self.name))
+      .build()
+      .unwrap()
+  }
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Entity {
   Namespace(Namespace),
   Function(Function),
   Class(Class),
-  Variable(Variable)
+  Variable(Variable),
+  Typedef(Typedef),
+  Enum(Enum),
+  EnumValue(EnumValue)
 }
 
 impl EntityLike for Entity {
@@ -906,6 +1094,9 @@ impl EntityLike for Entity {
       Self::Function(function) => function.linked(symbols),
       Self::Class(class) => class.linked(symbols),
       Self::Variable(variable) => variable.linked(symbols),
+      Self::Typedef(typedef) => typedef.linked(symbols),
+      Self::Enum(e) => e.linked(symbols),
+      Self::EnumValue(e) => e.linked(symbols),
     }
   }
   
@@ -915,6 +1106,9 @@ impl EntityLike for Entity {
       Self::Function(function) => function.children(symbols),
       Self::Class(class) => class.children(symbols),
       Self::Variable(variable) => variable.children(symbols),
+      Self::Typedef(typedef) => typedef.children(symbols),
+      Self::Enum(e) => e.children(symbols),
+      Self::EnumValue(e) => e.children(symbols),
     }
   }
 
@@ -924,23 +1118,31 @@ impl EntityLike for Entity {
       Self::Function(function) => function.to_page(prefix, symbols),
       Self::Class(class) => class.to_page(prefix, symbols),
       Self::Variable(variable) => variable.to_page(prefix, symbols),
+      Self::Typedef(typedef) => typedef.to_page(prefix, symbols),
+      Self::Enum(e) => e.to_page(prefix, symbols),
+      Self::EnumValue(e) => e.to_page(prefix, symbols),
     }
   }
 
-  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>) -> HashSet<String> {
+  fn visit<'tu>(entity: clang::Entity<'tu>, mangler: &mut Mangler<'tu>, symbols: &mut HashMap<String, Entity>, prefix: &String) -> HashSet<String> {
     if entity.is_in_system_header() {
       return HashSet::new();
     }
 
+    use clang::EntityKind;
+
     match entity.get_kind() {
-      clang::EntityKind::Namespace => Namespace::visit(entity, mangler, symbols),
-      clang::EntityKind::FunctionDecl | clang::EntityKind::Method => Function::visit(entity, mangler, symbols),
-      clang::EntityKind::ClassDecl | clang::EntityKind::ClassTemplate | clang::EntityKind::StructDecl => Class::visit(entity, mangler, symbols),
-      clang::EntityKind::FieldDecl | clang::EntityKind::VarDecl => Variable::visit(entity, mangler, symbols),
-      clang::EntityKind::TranslationUnit => {
+      EntityKind::Namespace => Namespace::visit(entity, mangler, symbols, prefix),
+      EntityKind::FunctionDecl | EntityKind::Method | EntityKind::Constructor | EntityKind::Destructor | EntityKind::FunctionTemplate => Function::visit(entity, mangler, symbols, prefix),
+      EntityKind::ClassDecl | EntityKind::ClassTemplate | EntityKind::StructDecl => Class::visit(entity, mangler, symbols, prefix),
+      EntityKind::FieldDecl | EntityKind::VarDecl => Variable::visit(entity, mangler, symbols, prefix),
+      EntityKind::TypedefDecl => Typedef::visit(entity, mangler, symbols, prefix),
+      // EntityKind::EnumDecl => Enum::visit(entity, mangler, symbols, prefix),
+      // EntityKind::EnumConstantDecl => EnumValue::visit(entity, mangler, symbols, prefix),
+      EntityKind::TranslationUnit => {
         let mut ret = HashSet::new();
         for entity in entity.get_children() {
-          ret.extend(Self::visit(entity, mangler, symbols).into_iter());
+          ret.extend(Self::visit(entity, mangler, symbols, prefix).into_iter());
         }
         ret
       },

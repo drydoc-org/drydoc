@@ -49,85 +49,16 @@ export class ClassItem extends React.Component<Props, State> {
 
     const { model, symbols, depth } = props;
     
-    const { comment, children, is_struct } = model;
+    const { comment, is_struct } = model;
 
-    let functions: JSX.Element[] = [];
-    let classes: JSX.Element[] = [];
-    let structs: JSX.Element[] = [];
-    let variables: JSX.Element[] = [];
+    const keyword = is_struct ? 'struct' : 'class';
 
-    console.log('model', model);
-    
-    for (let i = 0; i < children.length; ++i) {
-      const child = children[i];
-      const symbol = symbols[child];
-      console.log('symbol', symbol);
-
-      if (!symbol) continue;
-
-      switch (symbol.type) {
-        case "function": {
-          functions.push(
-            <FunctionItem model={symbol} symbols={symbols} depth={depth + 1} />
-          );
-          break;
-        }
-        case "class": {
-          if (symbol.is_struct) {
-            structs.push(
-              <ClassItem model={symbol} symbols={symbols} depth={depth + 1} />
-            );
-          } else {
-            classes.push(
-              <ClassItem model={symbol} symbols={symbols} depth={depth + 1} />
-            );
-          }
-          
-          break;
-        }
-        case "variable": {
-          variables.push(
-            <VariableItem model={symbol} symbols={symbols} depth={depth + 1} />
-          );
-          break;
-        }
-      }
-    }
+    console.log('class item', model);
 
     return (
       <Container>
-        <Title style={{ fontFamily: "'Fira Code', monospace" }} depth={depth}><LanguageKeyword>{is_struct ? 'struct' : 'class'} </LanguageKeyword> {model.display_name}</Title>
+        <Title style={{ fontFamily: "'Fira Code', monospace" }} depth={depth}><LanguageKeyword>{keyword}</LanguageKeyword> {model.display_name}</Title>
         {comment ? <Comment comment={comment} /> : undefined}
-
-        
-
-        {classes.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Classes</SubTitle>
-            {classes}
-          </>
-        ) : undefined}
-
-        {structs.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Structs</SubTitle>
-            {structs}
-          </>
-        ) : undefined}
-
-        {functions.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Methods</SubTitle>
-            {functions}
-          </>
-        ) : undefined}
-
-        {variables.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Fields</SubTitle>
-            {variables}
-          </>
-        ) : undefined}
       </Container>
     );
   }

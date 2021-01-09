@@ -63,6 +63,19 @@ namespace Dict {
 
     return ret;
   }
+
+  export const toList = <T>(dict: Dict<T>): [string, T][] => {
+    const ret: [string, T][] = [];
+    
+    const ids = keys(dict);
+    for (let i = 0; i < ids.length; ++i) {
+      const id = ids[i];
+      const value = dict[id];
+      ret.push([ id, value ]);
+    }
+
+    return ret;
+  }
 }
 
 export default Dict;

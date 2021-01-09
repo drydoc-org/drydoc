@@ -9,6 +9,8 @@ import { Entity } from '../doxygen/Entity';
 
 export interface DoxygenProps {
   page: Page.Resolved;
+
+  onPageChange: (id: string, event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 interface DoxygenState {
@@ -17,10 +19,8 @@ interface DoxygenState {
 
 const Container = styled.div`
   width: 100%;
-  max-width: 720px;
   margin: auto;
-  height: 100%;
-  padding: 10px;
+  padding: 20px;
 `;
 
 type Props = DoxygenProps;
@@ -41,9 +41,11 @@ export class Doxygen extends React.Component<Props, State> {
       return null;
     }
 
+    const { onPageChange } = props;
+
     return (
       <Container>
-        <Entity page={page} />
+        <Entity onPageChange={onPageChange} page={page} />
       </Container>
     );
   }

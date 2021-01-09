@@ -57,6 +57,7 @@ export namespace State {
   })(pages);
 
   const byParents = ((pages: Dict<Page>) => {
+    const visited = new Set<string>();
     const children = new Set<string>();
     console.log(pages);
     Dict.forEach(pages, page => {
@@ -74,6 +75,19 @@ export namespace State {
     while (q.length > 0) {
       const [parent, current] = q.shift() as [string | null, string];
       if (parent !== null) ret[current] = parent;
+      
+      if (!pages[current]) {
+        console.log(`WARNING: Page ${current} is undefined. This will cause issues.`);
+        continue;
+      }
+      
+      if (visited.has(current)) {
+        console.log('Cycle detected!', current);
+        continue;
+      }
+
+      visited.add(current);
+
       q.push(...(pages[current].children.map(child => ([ current, child ])) as [string, string][]));
     }
 
@@ -116,7 +130,29 @@ const readAll = async (stream: ReadableStreamDefaultReader<Uint8Array>) => {
 };
 
 export const resolve = async (page: Page.Unresolved) => {
-  const response = await fetch(`${page.id}.page`);
+  if (!page.resolvable) {
+    console.log(page, 'not resolvable');
+    window.setTimeout(() => {
+      store.dispatch({
+        type: 'page-set',
+        pages: [{
+          state: Page.State.Resolved,
+          id: page.id,
+          name: page.name,
+          content_type: page.content_type,
+          children: page.children,
+          metadata: page.metadata,
+          renderer: page.renderer,
+          url: page.url,
+          hidden: page.hidden,
+          resolvable: page.resolvable,
+          content: undefined
+        } as Page.Resolved]
+      });
+    }, 0);
+    return;
+  }
+  const response = await fetch(page.url);
 
   const body = response.body;
   if (!body) {
@@ -137,6 +173,9 @@ export const resolve = async (page: Page.Unresolved) => {
       children: page.children,
       metadata: page.metadata,
       renderer: page.renderer,
+      hidden: page.hidden,
+      url: page.url,
+      resolvable: page.resolvable,
       content
     } as Page.Resolved]
   });
@@ -183,7 +222,10 @@ export default (state: State = State.DEFAULT, action: Action): State => {
             content_type: page.content_type,
             name: page.name,
             renderer: page.renderer,
-            children: page.children
+            children: page.children,
+            resolvable: page.resolvable,
+            hidden: page.hidden,
+            url: page.url
           }
         }
       };

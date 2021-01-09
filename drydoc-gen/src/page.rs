@@ -39,7 +39,10 @@ pub struct Page {
   pub renderer: String,
   pub content_type: String,
   pub metadata: HashMap<String, String>,
-  pub children: HashSet<Id>
+  pub children: HashSet<Id>,
+  pub url: String,
+  pub resolvable: bool,
+  pub hidden: Option<bool>
 }
 
 impl Page {
@@ -54,15 +57,21 @@ pub struct PageBuilder {
   renderer: Option<String>,
   content_type: Option<String>,
   metadata: HashMap<String, String>,
-  children: HashSet<Id>
+  children: HashSet<Id>,
+  url: Option<String>,
+  resolvable: Option<bool>,
+  hidden: Option<bool>
 }
 
-#[derive(Debug)]
+use derive_more::*;
+
+#[derive(Display, Debug, Error)]
 pub enum BuildError {
   MissingId,
   MissingName,
   MissingRenderer,
-  MissingContentType
+  MissingContentType,
+  MissingUrl,
 }
 
 impl PageBuilder {
@@ -72,6 +81,9 @@ impl PageBuilder {
       name: None,
       renderer: None,
       content_type: None,
+      url: None,
+      resolvable: None,
+      hidden: None,
       metadata: HashMap::new(),
       children: HashSet::new()
     }
@@ -111,6 +123,21 @@ impl PageBuilder {
     self.metadata.insert(key.into(), value.into());
     self
   }
+
+  pub fn url<U: Into<String>>(mut self, url: U) -> Self {
+    self.url = Some(url.into());
+    self
+  }
+
+  pub fn resolvable<R: Into<bool>>(mut self, resolvable: R) -> Self {
+    self.resolvable = Some(resolvable.into());
+    self
+  }
+
+  pub fn hidden<H: Into<bool>>(mut self, hidden: H) -> Self {
+    self.hidden = Some(hidden.into());
+    self
+  }
   
   pub fn build(mut self) -> Result<Page, BuildError> {
     let id = match self.id.take() {
@@ -132,12 +159,20 @@ impl PageBuilder {
       Some(content_type) => content_type,
       None => return Err(BuildError::MissingContentType)
     };
+
+    let url = match self.url.take() {
+      Some(url) => url,
+      None => return Err(BuildError::MissingUrl)
+    };
     
     Ok(Page {
       id,
       name,
       renderer,
       content_type,
+      url,
+      hidden: self.hidden,
+      resolvable: self.resolvable.unwrap_or(true),
       metadata: self.metadata,
       children: self.children
     })

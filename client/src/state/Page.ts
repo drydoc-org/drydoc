@@ -14,7 +14,10 @@ namespace Page {
     name: string,
     renderer: string,
     metadata: Dict<string>,
-    children: string[]
+    children: string[],
+    resolvable: boolean,
+    url: string,
+    hidden?: boolean
   }
   
   export interface Unresolved extends Base {

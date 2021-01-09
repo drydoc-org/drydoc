@@ -40,14 +40,14 @@ export interface ParamCommand {
   index?: number,
   parameter?: string,
   direction?: ParameterDirection,
-  children: string[]
+  children: CommentChild[]
 }
 
 export interface TParamCommand {
   type: "tparamcommand",
   position?: [number, number],
   parameter: string,
-  children: string[]
+  children: CommentChild[]
 }
 
 export interface Text {
@@ -223,7 +223,8 @@ export interface Type {
   display_name: string,
   name?: string,
   const_qualified: boolean,
-  pointee?: Type
+  pointee?: Type,
+  elaborated?: Type,
 }
 
 export interface Param {
@@ -243,7 +244,9 @@ export interface Function {
   params: Param[],
   ret_ty: Type,
   visibility?: Visibility,
-  accessibility?: Accessibility
+  accessibility?: Accessibility,
+  is_ctor: boolean,
+  is_dtor: boolean
 }
 
 export interface Class {
@@ -264,7 +267,49 @@ export interface Variable {
   ty: Type
 }
 
-export type Entity = Namespace | Function | Class | Variable;
+export interface Typedef {
+  type: "typedef",
+  name: string,
+  display_name: string,
+  comment?: CommentChild[],
+  ty: Type
+}
+
+
+export interface Enum {
+  type: "enum",
+  name: string,
+  display_name: string,
+  comment?: CommentChild[],
+  children: string[]
+}
+
+export interface EnumValue {
+  type: "enumvalue",
+  name: string,
+  display_name: string,
+  comment?: CommentChild[],
+  value?: String
+}
+
+export type Entity = Namespace | Function | Class | Variable | Typedef | Enum | EnumValue;
+
+export namespace Entity {
+  export const comment = (entity: Entity): CommentChild[] | undefined => entity.comment;
+  export const name = (entity: Entity): string => entity.name;
+  export const display_name = (entity: Entity): string => entity.display_name;
+  
+  export const children = (entity: Entity): string[] => {
+    switch (entity.type) {
+      case 'class':
+      case 'namespace':
+      case 'enum':
+        return entity.children;
+      default:
+        return [];
+    }
+  };
+}
 
 export interface PageData {
   name: string,

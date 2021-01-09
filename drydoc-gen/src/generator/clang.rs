@@ -44,10 +44,6 @@ impl ClangGenerator {
     Self {}
   }
 
-
-
-  
-
   fn to_pages(prefix: String, symbols: &HashMap<String, model::Entity>) -> HashMap<Id, Page> {
     let mut ret = HashMap::with_capacity(symbols.len());    
     for (_, entity) in symbols.iter() {
@@ -98,25 +94,28 @@ impl ClangGenerator {
         .arguments(arguments.as_slice())
         .parse();
 
+      println!("ARGS {:?}", arguments.as_slice());
       let tu = match tu {
         Ok(tu) => tu,
         Err(err) => return Err(GenerateError::Internal(Box::new(err)))
       };
 
       let mut mangler = model::Mangler::new();
-      roots.extend(model::Entity::visit(tu.get_entity(), &mut mangler, &mut symbols).into_iter());
+      roots.extend(model::Entity::visit(tu.get_entity(), &mut mangler, &mut symbols, &prefix).into_iter());
     }
 
+    println!("CLANG PREFIX {}", &prefix);
     let mut root_page = Page::builder()
       .id(format!("{}", prefix))
       .name(name)
       .content_type("clang/home")
       .renderer("clang")
+      .url("")
       .build()
       .unwrap();
 
     for root in roots.iter() {
-      root_page.children.insert(Id(format!("{}{}", prefix.as_str(), root)));
+      root_page.children.insert(Id(root.clone()));
     }
 
     let mut pages = Self::to_pages(prefix.clone(), &symbols);
@@ -137,7 +136,7 @@ impl ClangGenerator {
         symbols: model::subset(&symbols, names)
       };
       let entity_json = serde_json::to_vec(&data).unwrap();
-      bundle.insert_entry(format!("{}{}.page", prefix.as_str(), name), VirtFile::new(entity_json));
+      bundle.insert_entry(format!("{}.page", name), VirtFile::new(entity_json));
     }
 
     Ok(bundle)

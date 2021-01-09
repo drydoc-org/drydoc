@@ -39,7 +39,7 @@ export class NamespaceItem extends React.Component<Props, State> {
   render() {
     const { props } = this;
 
-    const { model, depth, symbols } = props;
+    const { model, depth, symbols, onPageChange } = props;
     const { comment, children } = model;
 
     let functions: JSX.Element[] = [];
@@ -60,25 +60,25 @@ export class NamespaceItem extends React.Component<Props, State> {
       switch (symbol.type) {
         case "function": {
           functions.push(
-            <FunctionItem model={symbol} symbols={symbols} depth={depth + 1} />
+            <FunctionItem onPageChange={onPageChange} model={symbol} symbols={symbols} depth={depth + 1} />
           );
           break;
         }
         case "class": {
           if (symbol.is_struct) {
             structs.push(
-              <ClassItem model={symbol} symbols={symbols} depth={depth + 1} />
+              <ClassItem onPageChange={onPageChange} model={symbol} symbols={symbols} depth={depth + 1} />
             );
           } else {
             classes.push(
-              <ClassItem model={symbol} symbols={symbols} depth={depth + 1} />
+              <ClassItem onPageChange={onPageChange} model={symbol} symbols={symbols} depth={depth + 1} />
             );
           }
           break;
         }
         case "variable": {
           variables.push(
-            <VariableItem model={symbol} symbols={symbols} depth={depth + 1} />
+            <VariableItem onPageChange={onPageChange} model={symbol} symbols={symbols} depth={depth + 1} />
           );
         }
       }
@@ -88,35 +88,6 @@ export class NamespaceItem extends React.Component<Props, State> {
       <Container>
         <Title depth={depth} style={{ fontFamily: `"Fira Code", monospace` }}><LanguageKeyword>namespace</LanguageKeyword> {model.display_name}</Title>
         {comment ? <Comment comment={comment} /> : undefined}
-
-        {classes.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Classes</SubTitle>
-            {classes}
-          </>
-        ) : undefined}
-
-        {structs.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Structs</SubTitle>
-            {structs}
-          </>
-        ) : undefined}
-
-        {functions.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Functions</SubTitle>
-            {functions}
-          </>
-        ) : undefined}
-
-        {variables.length > 0 ? (
-          <>
-            <SubTitle depth={depth}>Variables</SubTitle>
-            {variables}
-          </>
-        ) : undefined}
-
       </Container>
     );
   }

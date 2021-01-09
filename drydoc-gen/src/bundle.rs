@@ -21,6 +21,10 @@ impl Manifest {
   }
   
   pub fn merge(&mut self, child: Manifest) -> Result<(), ()> {
+    if let Some(page) = self.pages.get_mut(&self.root) {
+      page.children.insert(child.root);
+    }
+    
     for (id, page) in child.pages {
       self.pages.insert(id, page);
     }
@@ -46,6 +50,7 @@ impl Bundle {
   }
 
   pub fn merge(&mut self, child: Bundle) -> Result<(), ()> {
+
     self.manifest.merge(child.manifest)?;
     self.folder.merge(&child.folder)?;
     Ok(())
