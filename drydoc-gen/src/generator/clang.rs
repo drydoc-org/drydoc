@@ -90,8 +90,6 @@ impl ClangGenerator {
     config_args.extend(env_args);
     
 
-    let arguments = 
-
     lazy_static! {
       pub static ref VALID_EXTENSIONS: HashSet<&'static str> = HashSet::from_iter(vec![
         "h",
@@ -110,7 +108,7 @@ impl ClangGenerator {
       let tu = index.parser(path)
         .incomplete(true)
         .skip_function_bodies(true)
-        .arguments(arguments.as_slice())
+        .arguments(config_args.as_slice())
         .parse();
 
       let tu = match tu {
