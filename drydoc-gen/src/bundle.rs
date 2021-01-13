@@ -30,6 +30,34 @@ impl Manifest {
     }
     Ok(())
   }
+
+  pub fn namespace(mut self) -> Self {
+    let mut pages = HashMap::new();
+    
+    let mut q: Vec<(String, Id)> = vec![ ("".to_string(), self.root.clone()) ];
+    while let Some((prefix, current)) = q.pop() {
+      let page = self.pages.remove(&current).unwrap();
+      let next_id = Id(format!("{}{}", prefix, current.0));
+      let next_children = page.children.into_iter().map(|c| Id(format!("{}{}", next_id.0, c.0))).collect();
+
+      let next_page = Page {
+        id: next_id.clone(),
+        children: next_children,
+        ..page
+      };
+
+      for page in next_page.children.iter() {
+        q.push((next_id.0.clone(), page.clone()))
+      }
+
+      pages.insert(next_id.clone(), next_page);
+    }
+
+    Self {
+      root: self.root,
+      pages
+    }
+  }
 }
 
 pub struct Bundle {
@@ -62,5 +90,12 @@ impl Bundle {
     folder.insert("manifest.json", VirtFile::new(manifest_json));
     folder.merge(&self.folder).unwrap();
     folder.write_into(path).await
+  }
+  
+  pub fn namespace(self) -> Self {
+    Self {
+      manifest: self.manifest.namespace(),
+      folder: self.folder
+    }
   }
 }

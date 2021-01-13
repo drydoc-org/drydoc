@@ -166,7 +166,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   bundle.folder.merge(&fs::Folder::read(home.join("static")).await?).unwrap();
 
-  
+  bundle = bundle.namespace();
+
+
   println!("Writing...");
   bundle.write_out(opts.output.as_str()).await?;
 
