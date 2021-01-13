@@ -156,12 +156,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let mut js = fs::Folder::new();
   let bundle_path = home.join(std::path::PathBuf::from_iter(&["client", "dist", "bundle.js"]));
   println!("bundle path: {:?}", &bundle_path);
-  js.insert("bundle.js", fs::File::open(bundle_path).await?);
-  js.insert("manifest.js", fs::VirtFile::new(manifest_js.as_bytes()));
 
+  js.insert("bundle.js", fs::File::open(bundle_path).await?);
+  println!("inserted bundle.js");
+  js.insert("manifest.js", fs::VirtFile::new(manifest_js.as_bytes()));
+  println!("inserted manifest.js");
   bundle.insert_entry("js", js);
+  println!("inserted js");
+
   bundle.folder.merge(&fs::Folder::read(home.join("static")).await?).unwrap();
 
+  
   println!("Writing...");
   bundle.write_out(opts.output.as_str()).await?;
 
