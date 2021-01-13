@@ -1,7 +1,7 @@
 use super::actor::{Actor, Addr, Receiver};
 use super::config::Rule;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 use tokio::sync::oneshot::{Sender, channel};
 
 use super::bundle::Bundle;
@@ -106,16 +106,18 @@ pub enum GeneratorMsg {
   Generate {
     rule: Rule,
     prefix: String,
+    path: PathBuf,
     sender: Sender<Result<Bundle, GenerateError>>
   }
 }
 
 impl Addr<GeneratorMsg> {
-  pub async fn generate(&self, rule: Rule, prefix: String) -> Result<Bundle, GenerateError> {
+  pub async fn generate(&self, rule: Rule, prefix: String, path: PathBuf) -> Result<Bundle, GenerateError> {
     let (tx, rx) = channel();
     let _ = self.send(GeneratorMsg::Generate {
       rule,
       prefix,
+      path,
       sender: tx
     });
     rx.await.unwrap()

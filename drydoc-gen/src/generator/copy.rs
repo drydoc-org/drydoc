@@ -8,7 +8,7 @@ use crate::page::{Id, Page};
 use crate::bundle::{Bundle, Manifest};
 use crate::fs::{File};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 use std::collections::HashSet;
 
 use std::path::Path;
@@ -29,13 +29,19 @@ impl CopyGenerator {
     Self {}
   }
 
-  async fn generate(rule: Rule, prefix: String) -> Result<Bundle, GenerateError> {
+  async fn generate(rule: Rule, prefix: String, mut path: PathBuf) -> Result<Bundle, GenerateError> {
     assert_eq!(rule.name.as_str(), "copy");
 
-    let path = match rule.params.get(&PARAM_PATH.to_string()) {
-      Some(path) => Path::new(path),
+    match rule.params.get(&PARAM_PATH.to_string()) {
+      Some(path_str) => {
+        path.pop();
+        path.push(path_str);
+      },
       None => return Err(GenerateError::MissingParameter(PARAM_PATH.to_string()))
     };
+
+    println!("Copy path {:?}", &path);
+
 
 
     println!("hidden {:?}", rule.params.get(&HIDDEN.to_string()));
@@ -92,9 +98,9 @@ impl CopyGenerator {
   async fn run(self, mut rx: Receiver<GeneratorMsg>) {
     while let Some(msg) = rx.recv().await {
       match msg {
-        GeneratorMsg::Generate { rule, prefix, sender } => {
+        GeneratorMsg::Generate { rule, prefix, path, sender } => {
           tokio::spawn(async move {
-            let _ = sender.send(Self::generate(rule, prefix).await);
+            let _ = sender.send(Self::generate(rule, prefix, path).await);
           });
         }
       }

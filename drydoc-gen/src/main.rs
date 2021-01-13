@@ -4,10 +4,11 @@ mod bundle;
 mod fetch;
 mod resource;
 
-use std::{collections::HashMap};
+use std::{collections::HashMap, path::PathBuf};
 
 use clap::Clap;
 use config::{Config, Decl, Unit};
+use handlebars::Path;
 use page::Id;
 mod uri;
 mod generator;
@@ -18,6 +19,7 @@ mod fs2;
 use generator::{Generators, GeneratorsMsg, GenerateError};
 
 use bundle::{Bundle, Manifest};
+use tokio::fs::File;
 
 use std::future::Future;
 use actor::{Actor, Addr};
@@ -45,17 +47,18 @@ pub struct GenOpts {
 
 
 
-async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String) -> Result<Bundle, GenerateError> {
+async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String, path: PathBuf) -> Result<Bundle, GenerateError> {
   let mut sub_bundles = Vec::new();
   if let Some(children) = unit.children {
     for child in children {
-      sub_bundles.push(gen_decl(child, generators.clone(), format!("{}{}", &prefix, &unit.id)).await?);  
+      let path = path.clone();
+      sub_bundles.push(gen_decl(child, generators.clone(), format!("{}{}", &prefix, &unit.id), path).await?);  
     }
   }
 
   match generators.get(unit.rule.name.clone()).await {
     Some(generator) => {
-      let mut bundle = generator.generate(unit.rule, format!("{}{}", &prefix, &unit.id)).await?;
+      let mut bundle = generator.generate(unit.rule, format!("{}{}", &prefix, &unit.id), path).await?;
       for sub_bundle in sub_bundles {
         bundle.merge(sub_bundle).unwrap();
       }
@@ -72,19 +75,26 @@ async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String) -
   
 }
 
-fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, prefix: String) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
+use tokio::io::AsyncReadExt;
+
+fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, prefix: String, decl_path: PathBuf) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
+  println!("decl: {:?} {:#?}", &decl_path, &decl);
+  
   Box::pin(async move {
     match decl {
       Decl::Import(import) => {
-        let uri = uri::to_uri(import.uri.as_str());
-        let contents = fetch::fetch(&uri).await?;
-        let contents = String::from_utf8(contents.into()).unwrap();
+        let mut abs_path = PathBuf::new();
+        abs_path.push(decl_path.parent().unwrap());
+        abs_path.push(import.uri.as_str());
+        let mut file = File::open(&abs_path).await?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).await?;
         let config: Config = serde_yaml::from_str(contents.as_str()).unwrap();
-        Ok(gen_decl(config.decl, generators.clone(), prefix).await?)
+        Ok(gen_decl(config.decl, generators.clone(), prefix, abs_path).await?)
       },
       Decl::Unit(unit) => {
         println!("unit: {:?}", &unit);
-        Ok(gen_unit(unit, generators.clone(), prefix).await?)
+        Ok(gen_unit(unit, generators.clone(), prefix, decl_path).await?)
       }
     }
   })
@@ -115,11 +125,13 @@ impl log::Log for Logger {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let opts = GenOpts::parse();
   let uri = uri::to_uri(opts.config.as_str());
+  println!("uri: {:?}", &uri);
+
   let contents = fetch::fetch(&uri).await?;
   let contents = String::from_utf8(contents.into()).unwrap();
 
   let raw_config: serde_yaml::Value = serde_yaml::from_str(contents.as_str())?;
-  let decl: Decl = serde_yaml::from_value(preprocessor::preprocess(raw_config, std::sync::Arc::new(std::env::current_dir()?)).await?)?;
+  let decl: Config = serde_yaml::from_value(preprocessor::preprocess(raw_config, std::sync::Arc::new(std::env::current_dir()?)).await?)?;
 
   log::set_logger(&Logger {
     level: log::Level::Debug
@@ -127,7 +139,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   log::set_max_level(log::LevelFilter::Debug);
 
-  info!("Test");
 
   let mut generators = Generators::new();
   generators.insert_generator("copy", generator::copy::CopyGenerator::new()).await;
@@ -135,9 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
   let generators = generators.spawn();
-  let mut bundle = gen_decl(decl, generators.clone(), "".to_string()).await?;
-
-  println!("Add static...");
+  let mut bundle = gen_decl(decl.decl, generators.clone(), "".to_string(), opts.config.as_str().into()).await?;
 
   let manifest_js = format!("window.MANIFEST = {}", serde_json::to_string_pretty(&bundle.manifest).unwrap());
 
