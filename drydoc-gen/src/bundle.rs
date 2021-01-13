@@ -38,17 +38,20 @@ impl Manifest {
     while let Some((prefix, current)) = q.pop() {
       let page = self.pages.remove(&current).unwrap();
       let next_id = Id(format!("{}{}", prefix, current.0));
+      for child in page.children.iter() {
+        q.push((next_id.0.clone(), child.clone()))
+      }
       let next_children = page.children.into_iter().map(|c| Id(format!("{}{}", next_id.0, c.0))).collect();
 
+      
+      
       let next_page = Page {
         id: next_id.clone(),
         children: next_children,
         ..page
       };
 
-      for page in next_page.children.iter() {
-        q.push((next_id.0.clone(), page.clone()))
-      }
+      
 
       pages.insert(next_id.clone(), next_page);
     }
