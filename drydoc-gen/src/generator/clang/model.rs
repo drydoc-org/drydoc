@@ -213,7 +213,7 @@ impl<'tu> Mangler<'tu> {
         });
 
       ret.push_str(Self::to_fs_safe(entity.get_name().unwrap_or("".to_string())).as_str());
-      ret.push('/');
+      ret.push('.');
     }
     ret.pop();
 
