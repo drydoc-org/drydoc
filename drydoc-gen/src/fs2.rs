@@ -4,7 +4,7 @@ use std::io::{ErrorKind, Error, Result, Read};
 
 use tokio::io::AsyncWriteExt;
 
-use memmap::Mmap;
+use memmap::{Mmap, MmapOptions};
 
 use std::pin::Pin;
 use std::future::Future;
@@ -78,24 +78,32 @@ impl VirtFile {
 
 pub struct RealFile {
   file: std::fs::File,
-  contents: Mmap,
+  contents: Option<Mmap>,
 }
 
 impl RealFile {
   pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
     let file = std::fs::File::open(path)?;
     
+    
+
     Ok(Self {
-      contents: unsafe { Mmap::map(&file)? },
+      contents: if file.metadata()?.len() > 0 { Some(unsafe { Mmap::map(&file)? }) } else { None },
       file,
     })
   }
 }
 
+static EMPTY: &'static [u8] = &[];
+
 #[async_trait::async_trait]
 impl File for RealFile {
   fn contents(&self) -> &[u8] {
-    &self.contents
+    if let Some(contents) = &self.contents {
+      contents
+    } else {
+      EMPTY
+    }
   }
 
   async fn write(&self, path: &PathBuf) -> Result<()> {
@@ -104,7 +112,7 @@ impl File for RealFile {
     }
 
     let mut out_file = tokio::fs::File::create(path).await?;
-    out_file.write_all(&self.contents).await?;
+    out_file.write_all(self.contents()).await?;
     Ok(())
   }
 }
