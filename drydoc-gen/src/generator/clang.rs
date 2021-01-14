@@ -1,6 +1,6 @@
 use clang::*;
 
-use crate::actor::{Actor, Addr, Receiver};
+use crate::{actor::{Actor, Addr, Receiver}};
 
 use super::{GeneratorMsg, GenerateError};
 use crate::config::Rule;
@@ -13,9 +13,13 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::future::Future;
 
+use std::sync::Arc;
+
 use std::collections::{HashMap, HashSet};
 
 mod model;
+
+use crate::ns;
 
 use model::{EntityLike};
 
@@ -44,16 +48,16 @@ impl ClangGenerator {
     Self {}
   }
 
-  fn to_pages(prefix: String, symbols: &HashMap<String, model::Entity>) -> HashMap<Id, Page> {
+  fn to_pages(namespace: &Arc<ns::Namespace>, symbols: &HashMap<String, model::Entity>) -> HashMap<Id, Page> {
     let mut ret = HashMap::with_capacity(symbols.len());    
     for (_, entity) in symbols.iter() {
-      let page = entity.to_page(prefix.clone(), symbols);
+      let page = entity.to_page(namespace, symbols);
       ret.insert(page.id.clone(), page);
     }
     ret
   }
 
-  async fn generate(rule: Rule, prefix: String, mut path: PathBuf) -> Result<Bundle, GenerateError> {
+  async fn generate(rule: Rule, namespace: &Arc<ns::Namespace>, mut path: PathBuf) -> Result<Bundle, GenerateError> {
     let clang = clang::Clang::new().unwrap();
     let index = Index::new(&clang, false, false);
 
@@ -67,8 +71,6 @@ impl ClangGenerator {
       },
       None => return Err(GenerateError::MissingParameter(PARAM_PATH.to_string()))
     };
-
-    println!("Clang path {:?}", &path);
 
     let name_str = path.to_str().unwrap().to_string();
     let name = params
@@ -84,7 +86,10 @@ impl ClangGenerator {
 
     let mut config_args = params
       .get(&"arguments".to_string())
-      .map(|args| args.split_ascii_whitespace().collect::<Vec<&str>>())
+      .map(|args| args
+        .split_ascii_whitespace()
+        .collect::<Vec<&str>>()
+      )
       .unwrap_or(Vec::new());
 
     config_args.extend(env_args);
@@ -117,11 +122,11 @@ impl ClangGenerator {
       };
 
       let mut mangler = model::Mangler::new();
-      roots.extend(model::Entity::visit(tu.get_entity(), &mut mangler, &mut symbols, &prefix).into_iter());
+      roots.extend(model::Entity::visit(tu.get_entity(), &mut mangler, &mut symbols, namespace).into_iter());
     }
 
     let mut root_page = Page::builder()
-      .id(format!("{}", prefix))
+      .id(format!("{}", namespace))
       .name(name)
       .content_type("clang/home")
       .renderer("clang")
@@ -133,7 +138,7 @@ impl ClangGenerator {
       root_page.children.insert(Id(root.clone()));
     }
 
-    let mut pages = Self::to_pages(prefix.clone(), &symbols);
+    let mut pages = Self::to_pages(namespace, &symbols);
 
     let root_id = root_page.id.clone();
     pages.insert(root_page.id.clone(), root_page);
@@ -151,7 +156,7 @@ impl ClangGenerator {
         symbols: model::subset(&symbols, names)
       };
       let entity_json = serde_json::to_vec(&data).unwrap();
-      bundle.insert_entry(format!("{}.page", name), VirtFile::new(entity_json));
+      bundle.insert_entry(format!("{}.{}.page", namespace, name), VirtFile::new(entity_json));
     }
 
     Ok(bundle)
@@ -160,8 +165,8 @@ impl ClangGenerator {
   async fn run(self, mut rx: Receiver<GeneratorMsg>) {
     while let Some(msg) = rx.recv().await {
       match msg {
-        GeneratorMsg::Generate { rule, prefix, path, sender } => {
-          let _ = sender.send(Self::generate(rule, prefix, path).await);
+        GeneratorMsg::Generate { rule, namespace, path, sender } => {
+          let _ = sender.send(Self::generate(rule, &namespace, path).await);
         }
       }
     }

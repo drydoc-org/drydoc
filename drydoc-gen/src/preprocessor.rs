@@ -29,8 +29,7 @@ fn which(name: &str) -> Result<PathBuf> {
     for entry in std::fs::read_dir(sys_path)? {
       let entry = entry?;
       let path = entry.path();
-      let mut file_name = path.file_stem().unwrap().to_str().unwrap().to_string();
-
+      let file_name = path.file_stem().unwrap().to_str().unwrap().to_string();
       if file_name == name {
         return Ok(path.to_path_buf())
       }

@@ -25,6 +25,7 @@ use std::future::Future;
 use actor::{Actor, Addr};
 use std::pin::Pin;
 use std::iter::FromIterator;
+mod ns;
 
 mod preprocessor;
 mod progress;
@@ -32,6 +33,7 @@ mod progress;
 #[macro_use]
 extern crate lazy_static;
 
+use std::sync::Arc;
 
 /// Generate documentation
 #[derive(Clap, Debug)]
@@ -47,18 +49,20 @@ pub struct GenOpts {
 
 
 
-async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String, path: PathBuf) -> Result<Bundle, GenerateError> {
+async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, namespace: Arc<ns::Namespace>, path: PathBuf) -> Result<Bundle, GenerateError> {
   let mut sub_bundles = Vec::new();
+
+  let child_ns = namespace.child(unit.id.0);
   if let Some(children) = unit.children {
     for child in children {
       let path = path.clone();
-      sub_bundles.push(gen_decl(child, generators.clone(), format!("{}{}", &prefix, &unit.id), path).await?);  
+      sub_bundles.push(gen_decl(child, generators.clone(), child_ns.clone(), path).await?);  
     }
   }
 
   match generators.get(unit.rule.name.clone()).await {
     Some(generator) => {
-      let mut bundle = generator.generate(unit.rule, format!("{}{}", &prefix, &unit.id), path).await?;
+      let mut bundle = generator.generate(unit.rule, child_ns, path).await?;
       for sub_bundle in sub_bundles {
         bundle.merge(sub_bundle).unwrap();
       }
@@ -77,7 +81,7 @@ async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, prefix: String, p
 
 use tokio::io::AsyncReadExt;
 
-fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, prefix: String, decl_path: PathBuf) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
+fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, namespace: Arc<ns::Namespace>, decl_path: PathBuf) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
   println!("decl: {:?} {:#?}", &decl_path, &decl);
   
   Box::pin(async move {
@@ -90,11 +94,11 @@ fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, prefix: String, decl_pa
         let mut contents = String::new();
         file.read_to_string(&mut contents).await?;
         let config: Config = serde_yaml::from_str(contents.as_str()).unwrap();
-        Ok(gen_decl(config.decl, generators.clone(), prefix, abs_path).await?)
+        Ok(gen_decl(config.decl, generators.clone(), namespace, abs_path).await?)
       },
       Decl::Unit(unit) => {
         println!("unit: {:?}", &unit);
-        Ok(gen_unit(unit, generators.clone(), prefix, decl_path).await?)
+        Ok(gen_unit(unit, generators.clone(), namespace, decl_path).await?)
       }
     }
   })
@@ -146,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
   let generators = generators.spawn();
-  let mut bundle = gen_decl(decl.decl, generators.clone(), "".to_string(), opts.config.as_str().into()).await?;
+  let mut bundle = gen_decl(decl.decl, generators.clone(), ns::Namespace::new("root"), opts.config.as_str().into()).await?;
 
   let manifest_js = format!("window.MANIFEST = {}", serde_json::to_string_pretty(&bundle.manifest).unwrap());
 

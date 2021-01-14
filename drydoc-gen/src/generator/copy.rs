@@ -8,10 +8,13 @@ use crate::page::{Id, Page};
 use crate::bundle::{Bundle, Manifest};
 use crate::fs::{File};
 
+use crate::ns;
+
 use std::{collections::HashMap, path::PathBuf};
 use std::collections::HashSet;
 
 use std::path::Path;
+use std::sync::Arc;
 
 mod content_type;
 mod renderer;
@@ -29,7 +32,7 @@ impl CopyGenerator {
     Self {}
   }
 
-  async fn generate(rule: Rule, prefix: String, mut path: PathBuf) -> Result<Bundle, GenerateError> {
+  async fn generate(rule: Rule, namespace: &Arc<ns::Namespace>, mut path: PathBuf) -> Result<Bundle, GenerateError> {
     assert_eq!(rule.name.as_str(), "copy");
 
     match rule.params.get(&PARAM_PATH.to_string()) {
@@ -40,11 +43,6 @@ impl CopyGenerator {
       None => return Err(GenerateError::MissingParameter(PARAM_PATH.to_string()))
     };
 
-    println!("Copy path {:?}", &path);
-
-
-
-    println!("hidden {:?}", rule.params.get(&HIDDEN.to_string()));
     let hidden = match rule.params.get(&HIDDEN.to_string()) {
       Some(hidden) => match hidden.parse::<bool>() {
         Ok(hidden) => Some(hidden),
@@ -73,10 +71,10 @@ impl CopyGenerator {
       .unwrap_or("default")
       .to_string();
 
-    let page_id = Id(format!("{}", prefix));
+    let page_id = Id(format!("{}", namespace));
     let mut pages = HashMap::new();
     
-    let url = format!("{}.page", page_id);
+    let url = format!("{}.{}.page", namespace, page_id);
 
     pages.insert(page_id.clone(), Page {
       id: page_id.clone(),
@@ -98,9 +96,9 @@ impl CopyGenerator {
   async fn run(self, mut rx: Receiver<GeneratorMsg>) {
     while let Some(msg) = rx.recv().await {
       match msg {
-        GeneratorMsg::Generate { rule, prefix, path, sender } => {
+        GeneratorMsg::Generate { rule, namespace, path, sender } => {
           tokio::spawn(async move {
-            let _ = sender.send(Self::generate(rule, prefix, path).await);
+            let _ = sender.send(Self::generate(rule, &namespace, path).await);
           });
         }
       }
