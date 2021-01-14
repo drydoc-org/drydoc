@@ -346,7 +346,7 @@ impl EntityLike for Namespace {
       .content_type("clang/namespace")
       .meta("section", "namespace")
       .children(self.children.iter())
-      .url(format!("{}/{}.page", namespace, &self.name))
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
@@ -762,7 +762,7 @@ impl EntityLike for Function {
       .renderer("clang")
       .content_type("clang/function")
       .meta("section", "function")
-      .url(format!("{}/{}.page", namespace, &self.name))
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
@@ -844,7 +844,7 @@ impl EntityLike for Class {
       .content_type(if self.is_struct { "clang/struct" } else { "clang/class" })
       .meta("section", if self.is_struct { "struct" } else { "class" })
       .children(self.children.iter())
-      .url(format!("{}/{}.page", namespace, &self.name))
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
@@ -912,7 +912,7 @@ impl EntityLike for Variable {
       .renderer("clang")
       .content_type("clang/variable")
       .meta("section", "variable")
-      .url(format!("{}/{}.page", namespace, &self.name))
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
@@ -992,7 +992,7 @@ impl EntityLike for Typedef {
       .renderer("clang")
       .content_type("clang/typedef")
       .meta("section", "typedef")
-      .url(format!("{}/{}.page", namespace, &self.name))
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
@@ -1049,7 +1049,7 @@ impl EntityLike for EnumValue {
       .renderer("clang")
       .content_type("clang/enum-value")
       .meta("section", "enum-value")
-      .url(format!("{}/{}.page", namespace, &self.name))
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
@@ -1113,7 +1113,7 @@ impl EntityLike for Enum {
       .renderer("clang")
       .content_type("clang/enum")
       .meta("section", "enum")
-      .url(format!("{}/{}.page", namespace, &self.name))
+      .url(format!("{}.page", &self.name))
       .build()
       .unwrap()
   }
