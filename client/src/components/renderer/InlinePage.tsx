@@ -60,6 +60,10 @@ class InlinePage extends React.Component<Props, State> {
   render() {
     const { props } = this;
     const { page, style, className } = props;
+    if (!page) {
+      return null;
+    }
+    
     if (page.state === PageModel.State.Unresolved) {
       this.props.resolve(page.id);
     }
