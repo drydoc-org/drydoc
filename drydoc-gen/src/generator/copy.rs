@@ -6,7 +6,7 @@ use crate::config::Rule;
 
 use crate::page::{Id, Page};
 use crate::bundle::{Bundle, Manifest};
-use crate::fs::{File};
+use crate::fs2::{RealFile};
 
 use crate::ns;
 
@@ -74,7 +74,7 @@ impl CopyGenerator {
     let page_id = Id(format!("{}", namespace));
     let mut pages = HashMap::new();
     
-    let url = format!("{}.{}.page", namespace, page_id);
+    let url = format!("{}.page", page_id);
 
     pages.insert(page_id.clone(), Page {
       id: page_id.clone(),
@@ -89,7 +89,7 @@ impl CopyGenerator {
     });
 
     let mut bundle = Bundle::new(Manifest::new(page_id.clone(), pages));
-    bundle.insert_entry(url, File::open(path).await?);
+    bundle.insert_entry(url, RealFile::open(path)?);
     Ok(bundle)
   }
 

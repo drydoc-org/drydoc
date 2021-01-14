@@ -5,7 +5,7 @@ use crate::{actor::{Actor, Addr, Receiver}};
 use super::{GeneratorMsg, GenerateError};
 use crate::config::Rule;
 use crate::page::{Page, Id};
-use crate::fs::{VirtFile};
+use crate::fs2::{VirtFile};
 use crate::bundle::{Bundle, Manifest};
 
 use std::path::{Path, PathBuf};
@@ -156,7 +156,7 @@ impl ClangGenerator {
         symbols: model::subset(&symbols, names)
       };
       let entity_json = serde_json::to_vec(&data).unwrap();
-      bundle.insert_entry(name.clone(), VirtFile::new(entity_json));
+      bundle.insert_entry(format!("{}.page", name), VirtFile::new(entity_json));
     }
 
     Ok(bundle)

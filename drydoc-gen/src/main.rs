@@ -157,18 +157,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let current_exe = std::env::current_exe().unwrap();
   let home = current_exe.parent().unwrap().parent().unwrap().parent().unwrap();
 
-  let mut js = fs::Folder::new();
+  let mut js = fs2::Folder::new();
   let bundle_path = home.join(std::path::PathBuf::from_iter(&["client", "dist", "bundle.js"]));
   println!("bundle path: {:?}", &bundle_path);
 
-  js.insert("bundle.js", fs::File::open(bundle_path).await?);
+  js.insert("bundle.js", fs2::RealFile::open(bundle_path)?);
   println!("inserted bundle.js");
-  js.insert("manifest.js", fs::VirtFile::new(manifest_js.as_bytes()));
+  js.insert("manifest.js", fs2::VirtFile::new(manifest_js.as_bytes()));
   println!("inserted manifest.js");
   bundle.insert_entry("js", js);
   println!("inserted js");
 
-  bundle.folder.merge(&fs::Folder::read(home.join("static")).await?).unwrap();
+  bundle.folder.merge(fs2::Folder::read(home.join("static")).await?).unwrap();
 
   bundle = bundle.namespace();
 

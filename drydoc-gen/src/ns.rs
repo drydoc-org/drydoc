@@ -24,7 +24,7 @@ impl Namespace {
 impl Display for Namespace {
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     if let Some(parent) = &self.parent {
-      write!(f, "{}.{}", parent, self.name)
+      write!(f, "{}/{}", parent, self.name)
     } else {
       write!(f, "{}", self.name)
     }

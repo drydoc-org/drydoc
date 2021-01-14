@@ -249,11 +249,16 @@ impl Folder {
   }
 
   pub fn insert<N: Into<String>, E: Into<Entry>>(&mut self, name: N, entry: E) -> Option<Entry> {
+
     self.entries.insert(name.into(), entry.into())
   }
 
   pub fn entries(&self) -> &HashMap<String, Entry> {
     &self.entries
+  }
+
+  pub fn entries_mut(&mut self) -> &mut HashMap<String, Entry> {
+    &mut self.entries
   }
 
   pub fn merge(&mut self, folder: &Folder) -> Result<(), ()> {
