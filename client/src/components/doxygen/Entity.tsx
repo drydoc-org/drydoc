@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import Dict from '../../Dict';
 
 import Page from '../../state/Page';
+import { Error } from '../Error';
 import { ClassItem } from './ClassItem';
 import { EntityBrief } from './EntityBrief';
 import { FunctionItem } from './FunctionItem';
@@ -57,7 +58,14 @@ export class Entity extends React.Component<Props, State> {
     const { page, onPageChange } = props;
     const { content } = page;
 
-    const { name, symbols } = JSON.parse(content) as PageData;
+    let data: PageData;
+    try {
+      data = JSON.parse(content) as PageData
+    } catch(e) {
+      return <Error title='An Exception Occurred' message="Failed to parse JSON" />;
+    }
+
+    const { name, symbols } = data;
 
     const symbol = symbols[name];
 
