@@ -145,7 +145,7 @@ impl Folder {
     }
   }
 
-  pub fn read<P: 'static + AsRef<Path>>(path: P) -> Pin<Box<dyn Future<Output = Result<Self>>>> {
+  pub fn read(path: PathBuf) -> Pin<Box<dyn Future<Output = Result<Self>> + Send>> {
     Box::pin(async move {
       let mut dir = tokio::fs::read_dir(path).await?;
 
@@ -229,7 +229,7 @@ impl Folder {
     Ok(())
   }
 
-  pub fn write_into(&self, mut path: PathBuf) -> Pin<Box<dyn Future<Output = Result<()>> + '_>> {
+  pub fn write_into(&self, mut path: PathBuf) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
     Box::pin(async move {
       tokio::fs::create_dir_all(&path).await?;
 

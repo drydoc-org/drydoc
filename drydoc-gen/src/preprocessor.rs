@@ -7,11 +7,10 @@ use std::future::Future;
 
 use std::io;
 use io::ErrorKind;
-use tokio::sync::oneshot::{Receiver, channel};
 
 use std::process::{Command, Stdio};
 
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 use std::sync::Arc;
 

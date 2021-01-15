@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 use crate::ns;
 
-use crate::page::{Page, Id};
+use crate::page::{Page};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlockCommand {
@@ -338,7 +338,7 @@ impl EntityLike for Namespace {
     ret
   }
 
-  fn to_page(&self, namespace: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
+  fn to_page(&self, _: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
     Page::builder()
       .id(self.name.clone())
       .name(self.display_name.clone())
@@ -751,11 +751,11 @@ impl EntityLike for Function {
     if ret.len() > 0 { Some(ret) } else { None }
   }
   
-  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn children(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     None
   }
 
-  fn to_page(&self, namespace: &Arc<ns::Namespace>, symbols: &HashMap<String, Entity>) -> Page {
+  fn to_page(&self, _: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
     Page::builder()
       .id(self.name.clone())
       .name(self.display_name.clone())
@@ -832,11 +832,11 @@ impl EntityLike for Class {
     if ret.len() > 0 { Some(ret) } else { None }
   }
   
-  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn children(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     Some(self.children.clone())
   }
 
-  fn to_page(&self, namespace: &Arc<ns::Namespace>, symbols: &HashMap<String, Entity>) -> Page {
+  fn to_page(&self, _: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
     Page::builder()
       .id(self.name.clone())
       .name(self.display_name.clone())
@@ -901,11 +901,11 @@ impl EntityLike for Variable {
     self.ty.linked(symbols)
   }
   
-  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn children(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     None
   }
 
-  fn to_page(&self, namespace: &Arc<ns::Namespace>, symbols: &HashMap<String, Entity>) -> Page {
+  fn to_page(&self, _: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
     Page::builder()
       .id(self.name.clone())
       .name(self.display_name.clone())
@@ -951,7 +951,7 @@ impl EntityLike for Variable {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Typedef {
+pub struct Typedef {
   name: String,
   display_name: String,
   ty: Type
@@ -962,7 +962,7 @@ impl EntityLike for Typedef {
     self.ty.linked(symbols)
   }
 
-  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn children(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     None
   }
   
@@ -985,7 +985,7 @@ impl EntityLike for Typedef {
     ret
   }
 
-  fn to_page(&self, namespace: &Arc<ns::Namespace>, symbols: &HashMap<String, Entity>) -> Page {
+  fn to_page(&self, _: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
     Page::builder()
       .id(self.name.clone())
       .name(self.display_name.clone())
@@ -1007,11 +1007,11 @@ pub struct EnumValue {
 }
 
 impl EntityLike for EnumValue {
-  fn linked(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn linked(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     None
   }
 
-  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn children(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     None
   }
 
@@ -1042,7 +1042,7 @@ impl EntityLike for EnumValue {
     ret
   }
 
-  fn to_page(&self, namespace: &Arc<ns::Namespace>, symbols: &HashMap<String, Entity>) -> Page {
+  fn to_page(&self, _: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
     Page::builder()
       .id(self.name.clone())
       .name(self.display_name.clone())
@@ -1064,11 +1064,11 @@ pub struct Enum {
 }
 
 impl EntityLike for Enum {
-  fn linked(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn linked(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     None
   }
 
-  fn children(&self, symbols: &HashMap<String, Entity>) -> Option<HashSet<String>> {
+  fn children(&self, _: &HashMap<String, Entity>) -> Option<HashSet<String>> {
     Some(self.children.clone())
   }
   
@@ -1106,7 +1106,7 @@ impl EntityLike for Enum {
     ret
   }
 
-  fn to_page(&self, namespace: &Arc<ns::Namespace>, symbols: &HashMap<String, Entity>) -> Page {
+  fn to_page(&self, _: &Arc<ns::Namespace>, _: &HashMap<String, Entity>) -> Page {
     Page::builder()
       .id(self.name.clone())
       .name(self.display_name.clone().unwrap_or("Anonymous".to_string()))

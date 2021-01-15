@@ -55,12 +55,12 @@ impl Bundle {
     Ok(())
   }
 
-  pub async fn write_out<'a, P: 'a + AsRef<Path>>(self, path: P) -> tokio::io::Result<()> {
+  pub async fn write_out(self, path: PathBuf) -> tokio::io::Result<()> {
     let mut folder = Folder::new();
     let manifest_json = serde_json::to_vec(&self.manifest).unwrap().into_boxed_slice();
     folder.insert("manifest.json", VirtFile::new(manifest_json));
     folder.merge(self.folder).unwrap();
-    folder.write_into(path.as_ref().to_path_buf()).await
+    folder.write_into(path).await
   }
   
   pub fn namespace(self) -> Self {

@@ -8,10 +8,7 @@ use crate::page::{Page, Id};
 use crate::fs2::{VirtFile};
 use crate::bundle::{Bundle, Manifest};
 
-use std::path::{Path, PathBuf};
-
-use std::pin::Pin;
-use std::future::Future;
+use std::path::{PathBuf};
 
 use std::sync::Arc;
 
@@ -25,7 +22,7 @@ use model::{EntityLike};
 
 use super::util::get_files;
 
-use serde::{Serialize, Deserialize};
+use serde::{Serialize};
 
 use std::iter::FromIterator;
 
@@ -156,7 +153,7 @@ impl ClangGenerator {
         symbols: model::subset(&symbols, names)
       };
       let entity_json = serde_json::to_vec(&data).unwrap();
-      bundle.insert_entry(format!("{}.page", name), VirtFile::new(entity_json));
+      bundle.insert_entry(format!("{}.page", name), VirtFile::new(entity_json))?;
     }
 
     Ok(bundle)
@@ -180,7 +177,7 @@ impl Actor for ClangGenerator {
   fn spawn(self) -> Addr<Self::Msg> {
     let (addr, rx) = Addr::new();
     std::thread::spawn(move || {
-      let mut rt = tokio::runtime::Builder::new_current_thread()
+      let rt = tokio::runtime::Builder::new_current_thread()
         .worker_threads(1)
         .enable_all()
         .build()

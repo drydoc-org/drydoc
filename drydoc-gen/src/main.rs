@@ -13,7 +13,6 @@ use page::Id;
 mod uri;
 mod generator;
 mod actor;
-mod fs;
 mod fs2;
 
 use generator::{Generators, GeneratorsMsg, GenerateError};
@@ -24,14 +23,18 @@ use tokio::fs::File;
 use std::future::Future;
 use actor::{Actor, Addr};
 use std::pin::Pin;
-use std::iter::FromIterator;
 mod ns;
-
+mod emitter;
 mod preprocessor;
 mod progress;
 
+use emitter::Emitter;
+
 #[macro_use]
 extern crate lazy_static;
+
+#[macro_use]
+extern crate lalrpop_util;
 
 use std::sync::Arc;
 
@@ -82,8 +85,6 @@ async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, namespace: Arc<ns
 use tokio::io::AsyncReadExt;
 
 fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, namespace: Arc<ns::Namespace>, decl_path: PathBuf) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
-  println!("decl: {:?} {:#?}", &decl_path, &decl);
-  
   Box::pin(async move {
     match decl {
       Decl::Import(import) => {
@@ -125,12 +126,10 @@ impl log::Log for Logger {
   fn flush(&self) {}
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+async fn gen() -> Result<(), Box<dyn std::error::Error>> {
   let opts = GenOpts::parse();
   let uri = uri::to_uri(opts.config.as_str());
-  println!("uri: {:?}", &uri);
-
   let contents = fetch::fetch(&uri).await?;
   let contents = String::from_utf8(contents.into()).unwrap();
 
@@ -150,33 +149,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
   let generators = generators.spawn();
-  let mut bundle = gen_decl(decl.decl, generators.clone(), ns::Namespace::new("root"), opts.config.as_str().into()).await?;
+  let bundle = gen_decl(decl.decl, generators.clone(), ns::Namespace::new("root"), opts.config.as_str().into()).await?;
 
-  let manifest_js = format!("window.MANIFEST = {}", serde_json::to_string_pretty(&bundle.manifest).unwrap());
-
-  let current_exe = std::env::current_exe().unwrap();
-  let home = current_exe.parent().unwrap().parent().unwrap().parent().unwrap();
-
-  let mut js = fs2::Folder::new();
-  let bundle_path = home.join(std::path::PathBuf::from_iter(&["client", "dist", "bundle.js"]));
-  println!("bundle path: {:?}", &bundle_path);
-
-  js.insert("bundle.js", fs2::RealFile::open(bundle_path)?);
-  println!("inserted bundle.js");
-  js.insert("manifest.js", fs2::VirtFile::new(manifest_js.as_bytes()));
-  println!("inserted manifest.js");
-  bundle.insert_entry("js", js);
-  println!("inserted js");
-
-  bundle.folder.merge(fs2::Folder::read(home.join("static")).await?).unwrap();
-
-  bundle = bundle.namespace();
-
-
-  println!("Writing...");
-  bundle.write_out(opts.output.as_str()).await?;
-
-  println!("Wrote out");
+  let emitter = emitter::html::Html::new(opts.output);
+  emitter.emit(bundle).await?;
 
   Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+  match gen().await {
+    Err(err) => {
+      eprintln!("ERROR: {:?}", err.source());
+      std::process::exit(1);
+    },
+    _ => {
+      std::process::exit(0);
+    }
+  }
 }

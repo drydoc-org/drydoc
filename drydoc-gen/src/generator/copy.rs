@@ -13,7 +13,6 @@ use crate::ns;
 use std::{collections::HashMap, path::PathBuf};
 use std::collections::HashSet;
 
-use std::path::Path;
 use std::sync::Arc;
 
 mod content_type;
@@ -89,7 +88,7 @@ impl CopyGenerator {
     });
 
     let mut bundle = Bundle::new(Manifest::new(page_id.clone(), pages));
-    bundle.insert_entry(url, RealFile::open(path)?);
+    bundle.insert_entry(url, RealFile::open(path)?)?;
     Ok(bundle)
   }
 

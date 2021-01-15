@@ -17,7 +17,7 @@
 
 // use super::util::get_files;
 
-// pub mod model;
+pub mod model;
 
 // static PARAM_PATH: &'static str = "path";
 // static NAME_PATH: &'static str = "name";

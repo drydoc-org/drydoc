@@ -1,6 +1,5 @@
 use url::Url;
 
-use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 
 pub async fn fetch(uri: &Url) -> Result<Box<[u8]>, tokio::io::Error> {
