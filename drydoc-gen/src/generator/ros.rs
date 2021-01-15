@@ -37,17 +37,17 @@ impl RosGenerator {
     Self {}
   }
 
-  async fn generate(rule: Rule, namespace: &ns::Namespace, path: PathBuf) -> Result<Bundle, GenerateError> {
+  async fn generate(rule: Rule, namespace: &ns::Namespace, unit_path: PathBuf) -> Result<Bundle, GenerateError> {
     assert_eq!(rule.name.as_str(), "ros");
 
     let params = rule.params;
 
     let paths = match params.get(&PARAM_PATH.to_string()) {
       Some(path) => path.split(',').map(|path_str| {
-        let path = path.clone();
-        path.pop();
-        path.push(path_str);
-        path
+        let unit_path = unit_path.clone();
+        unit_path.pop();
+        unit_path.push(path_str);
+        unit_path
       }).collect::<Vec<PathBuf>>(),
       None => return Err(GenerateError::MissingParameter(PARAM_PATH.to_string()))
     };
