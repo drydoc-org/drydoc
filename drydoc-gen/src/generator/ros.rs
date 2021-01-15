@@ -44,7 +44,7 @@ impl RosGenerator {
 
     let paths = match params.get(&PARAM_PATH.to_string()) {
       Some(path) => path.split(',').map(|path_str| {
-        let unit_path = unit_path.clone();
+        let mut unit_path = unit_path.clone();
         unit_path.pop();
         unit_path.push(path_str);
         unit_path
