@@ -2,10 +2,9 @@ import * as React from 'react';
 import styled from 'styled-components';
 
 import PageModel from '../../state/Page';
-import { Service } from '../ros/Service';
-import { MONOSPACE_FONT_FAMILY, Title } from '../ros/style';
+import { Action } from '../ros/Action';
 
-export interface RosServiceProps {
+export interface RosActionProps {
   page: PageModel.Resolved;
 
   onPageChange: (id: string, event: React.MouseEvent<HTMLDivElement>) => void;
@@ -18,9 +17,9 @@ const Container = styled.div`
   overflow-x: hidden;
 `;
 
-type Props = RosServiceProps;
+type Props = RosActionProps;
 
-export class RosService extends React.PureComponent<Props> {
+export class RosAction extends React.PureComponent<Props> {
   constructor(props: Props) {
     super(props);
 
@@ -30,12 +29,11 @@ export class RosService extends React.PureComponent<Props> {
   render() {
     const { props } = this;
 
-    const service = JSON.parse(props.page.content);
+    const action = JSON.parse(props.page.content);
 
     return (
       <Container>
-        <Title style={{ fontFamily: MONOSPACE_FONT_FAMILY }}>{`${service.package}/${service.name}`}</Title>
-        <Service service={service} />
+        <Action action={action} />
       </Container>
     );
   }

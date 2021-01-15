@@ -146,6 +146,7 @@ async fn gen() -> Result<(), Box<dyn std::error::Error>> {
   let mut generators = Generators::new();
   generators.insert_generator("copy", generator::copy::CopyGenerator::new()).await;
   generators.insert_generator("clang", generator::clang::ClangGenerator::new()).await;
+  generators.insert_generator("ros", generator::ros::RosGenerator::new()).await;
 
 
   let generators = generators.spawn();

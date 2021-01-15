@@ -115,11 +115,16 @@ const SECTION_NAMES = {
   class: "Classes",
   struct: "Structs",
   function: "Functions",
-  variable: "Variables"
+  variable: "Variables",
+  message: "Messages",
+  service: "Services"
 };
 
 const shouldMonospaceName = (page: Page) => {
-  return page && page.content_type.startsWith('clang');
+  return page && (
+    page.content_type.startsWith('clang') ||
+    page.content_type.startsWith('ros')
+  );
 };
 
 
@@ -202,7 +207,7 @@ export class Explorer extends React.Component<Props, State> {
   render() {
     const { props, state } = this;
 
-    if (!props.childPages) return null;
+    if (!props.childPages || Object.keys(props.childPages).length === 0) return null;
 
     const sections: Dict<Page[]> = {};
     Dict.forEach(props.childPages, page => {
@@ -215,6 +220,8 @@ export class Explorer extends React.Component<Props, State> {
         sections[section] = [ page ];
       }
     });
+
+    
 
     
 

@@ -15,6 +15,9 @@ import { Markdown } from './renderer/Markdown';
 import { Loading } from './renderer/Loading';
 import { StyleProps } from './doxygen/style';
 import { Video } from './renderer/Video';
+import { RosMessage } from './renderer/RosMessage';
+import { RosService } from './renderer/RosService';
+import { RosAction } from './renderer/RosAction';
 
 const Container = styled.div`
   flex: 1 1;
@@ -89,6 +92,18 @@ export class Page extends React.PureComponent<Props, State> {
     switch (page.content_type) {
       case 'text/markdown': {
         Renderer = Markdown;
+        break;
+      }
+      case 'ros/message': {
+        Renderer = RosMessage;
+        break;
+      }
+      case 'ros/service': {
+        Renderer = RosService;
+        break;
+      }
+      case 'ros/action': {
+        Renderer = RosAction;
         break;
       }
     }

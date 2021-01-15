@@ -1,0 +1,64 @@
+use crate::generator::ros::model;
+
+grammar;
+
+pub FieldKind: model::FieldKind = {
+  <package: Ident> "/" <name: Ident> => model::FieldKind::Reference(model::Reference {
+    package,
+    name,
+    page_id: None
+  }),
+  <name: Ident> => model::FieldKind::Reference(model::Reference {
+    package: "$THIS_PACKAGE".to_string(),
+    name,
+    page_id: None
+  }),
+  "Header" => model::FieldKind::Reference(model::Reference {
+    package: "std_msgs".to_string(),
+    name: "Header".to_string(),
+    page_id: None
+  }),
+  <primitive: Primitive> => model::FieldKind::Primitive {
+    kind: primitive
+  }
+}
+
+pub Field: model::Field = {
+  <kind: FieldKind> <name: Ident> => model::Field {
+    kind,
+    array_kind: model::ArrayKind::None,
+    name,
+    comment: None
+  },
+  <kind: FieldKind> "[" "]" <name: Ident> => model::Field {
+    kind,
+    array_kind: model::ArrayKind::Variable,
+    name,
+    comment: None
+  },
+  <kind: FieldKind> "[" <size: r#"[0-9]+"#> "]" <name: Ident> => model::Field {
+    kind,
+    array_kind: model::ArrayKind::Fixed { size: size.parse::<usize>().unwrap() },
+    name,
+    comment: None
+  },
+};
+
+pub Primitive: model::Primitive = {
+  "bool" => model::Primitive::Bool,
+  "int8" => model::Primitive::Int8,
+  "uint8" => model::Primitive::UInt8,
+  "int16" => model::Primitive::Int16,
+  "uint16" => model::Primitive::UInt16,
+  "int32" => model::Primitive::Int32,
+  "uint32" => model::Primitive::UInt32,
+  "int64" => model::Primitive::Int64,
+  "uint64" => model::Primitive::UInt64,
+  "float32" => model::Primitive::Float32,
+  "float64" => model::Primitive::Float64,
+  "string" => model::Primitive::String,
+  "time" => model::Primitive::Time,
+  "duration" => model::Primitive::Duration
+};
+
+pub Ident: String = <s: r#"[[a-zA-Z]|_][[a-zA-Z0-9]|_]*"#> => s.to_string();
