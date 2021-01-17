@@ -37,13 +37,18 @@ impl RosGenerator {
     Self {}
   }
 
-  async fn generate(rule: Rule, namespace: &ns::Namespace) -> Result<Bundle, GenerateError> {
+  async fn generate(rule: Rule, namespace: &ns::Namespace, unit_path: PathBuf) -> Result<Bundle, GenerateError> {
     assert_eq!(rule.name.as_str(), "ros");
 
     let params = rule.params;
 
     let paths = match params.get(&PARAM_PATH.to_string()) {
-      Some(path) => path.split(',').collect::<Vec<&str>>(),
+      Some(path) => path.split(',').map(|path_str| {
+        let mut unit_path = unit_path.clone();
+        unit_path.pop();
+        unit_path.push(path_str);
+        unit_path
+      }).collect::<Vec<PathBuf>>(),
       None => return Err(GenerateError::MissingParameter(PARAM_PATH.to_string()))
     };
 
@@ -173,7 +178,7 @@ impl RosGenerator {
     while let Some(msg) = rx.recv().await {
       match msg {
         GeneratorMsg::Generate { rule, namespace, path, sender } => {
-          let _ = sender.send(Self::generate(rule, &namespace).await);
+          let _ = sender.send(Self::generate(rule, &namespace, path).await);
         }
       }
     }
