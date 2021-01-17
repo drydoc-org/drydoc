@@ -1,0 +1,7 @@
+---
+type: generate
+id: drydoc_ipc
+using: copy@^1.0.0
+with:
+  name: "drydoc-ipc"
+  path: readme.md

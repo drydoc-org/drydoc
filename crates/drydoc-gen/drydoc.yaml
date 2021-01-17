@@ -1,0 +1,7 @@
+---
+type: generate
+id: drydoc_gen
+using: copy@^1.0.0
+with:
+  name: "drydoc gen"
+  path: readme.md
