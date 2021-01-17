@@ -12,21 +12,24 @@ import { PageData } from './doxygen/model';
 import { LanguageKeyword } from './doxygen/style';
 import { Search } from './Search';
 
-export interface NavBarProps {
+
+export interface NavBarPublicProps {
   page: Page;
-
-  path?: Page[];
-
-  location?: string;
-
   onPageChange: (id: string, event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-interface NavBarState {
-
+interface NavBarPrivateProps {
+  path: Page[];
+  location: string;
 }
 
-type Props = NavBarProps;
+/// `NavBar`'s React State
+interface NavBarState {
+  /// The number of hidden items on the nav bar (modified by the resize observer)
+  hiddenItems: number;
+}
+
+type Props = NavBarPublicProps & NavBarPrivateProps;
 type State = NavBarState;
 
 const Container = styled.div`
@@ -40,6 +43,21 @@ const Container = styled.div`
   padding-left: 8px;
   padding-right: 8px;
   background-color: ${NAVIGATION_BACKGROUND_COLOR};
+  overflow: hidden;
+`;
+
+const NavContainer = styled.div`
+  display: flex;
+  align-items: center;
+  flex-direction; row;
+  flex: 1 1;
+  overflow: hidden;
+`;
+
+const NavInnerContainer = styled.div`
+  display: flex;
+  align-items: center;
+  flex-direction; row;
   overflow: hidden;
 `;
 
@@ -108,24 +126,85 @@ class Item extends React.PureComponent<ItemProps> {
   }
 }
 
-export class NavBar extends React.Component<Props, State> {
+class NavBar extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
   }
 
+  private observer_: ResizeObserver;
+  private registerObserver_ = () => {
+    if (!this.navRef_ || !this.navInnerRef_ || this.observer_) return;
+
+    this.observer_ = new ResizeObserver(entries => {
+      let navEntry: ResizeObserverEntry | undefined = undefined;
+      let navInnerEntry: ResizeObserverEntry | undefined = undefined;
+
+      for (let i = 0; i < entries.length; ++i) {
+        const entry = entries[i];
+
+        if (entry.target === this.navRef_) {
+          navEntry = entry;
+          continue;
+        }
+
+        if (entry.target === this.navInnerRef_) {
+          navInnerEntry = entry;
+          continue;
+        }
+      }
+
+      if (!navEntry || !navInnerEntry) return;
+
+      const navSize = navEntry.borderBoxSize[0];
+      const navInnerSize = navInnerEntry.borderBoxSize[0];
+
+      // If the nav bar elements (navInnerSize) are about to overflow
+      // the amount of space inside the flexbox (navSize)
+      const remainingWidth = navInnerSize.inlineSize - navSize.inlineSize; 
+      const { hiddenItems } = this.state;
+      if (remainingWidth <= 20) {
+        // Hide an item from the nav bar
+        this.setState({
+          hiddenItems: Math.min(this.props.path.length, hiddenItems + 1)
+        });
+      } else if (remainingWidth >= 300) {
+        // Show an additional item on the nav bar
+        this.setState({
+          hiddenItems: Math.max(0, hiddenItems - 1)
+        });
+      } else {
+        // Do nothing
+      }
+    });
+  };
+
+  private navRef_: HTMLDivElement;
+  private bindNavRef_ = (navRef: HTMLDivElement) => {
+    this.navRef_ = navRef;
+    this.registerObserver_();
+  }
+
+  private navInnerRef_: HTMLDivElement;
+  private bindNavInnerRef_ = (navInnerRef: HTMLDivElement) => {
+    this.navInnerRef_ = navInnerRef;
+    this.registerObserver_();
+  }
+
   render() {
     const { props } = this;
-    if (!props.path) return null;
 
     return (
       <Container>
-        {props.path.map((page, i) => (
-          <>
-            <Item onClick={props.onPageChange} page={page} terminal={i + 1 == props.path?.length} />
-            {i + 1 !== props.path?.length ? <span><i style={{ marginLeft: '8px', marginRight: '8px' }} className='fa fa-xs fa-chevron-right' /></span> : undefined}
-          </>
-        ))}
-        <div style={{ flex: '1 1' }} />
+        <NavContainer ref={this.bindNavRef_}>
+          <NavInnerContainer ref={this.bindNavInnerRef_}>
+            {props.path.map((page, i) => (
+              <>
+                <Item onClick={props.onPageChange} page={page} terminal={i + 1 == props.path.length} />
+                {i + 1 !== props.path?.length ? <span><i style={{ marginLeft: '8px', marginRight: '8px' }} className='fa fa-xs fa-chevron-right' /></span> : undefined}
+              </>
+            ))}
+          </NavInnerContainer>
+        </NavContainer>
         <Search />
         <span><i style={{ margin: '4px' }} className='fa fa-bookmark' /></span>
         <i style={{ margin: '4px' }} className='fa fa-adjust' />
@@ -150,4 +229,4 @@ export default connect((state: ReduxState, ownProps: Props) => {
   };
 }, (dispatch, ownProps) => {
 
-})(NavBar);
+})(NavBar) as React.ComponentType<NavBarPublicProps>;

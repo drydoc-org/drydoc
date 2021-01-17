@@ -16,6 +16,7 @@ pub mod copy;
 pub mod clang;
 pub mod util;
 pub mod ros;
+pub mod rpc;
 
 
 pub enum GeneratorsMsg {

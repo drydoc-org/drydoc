@@ -3,6 +3,8 @@ name = "drydoc-gen"
 version = "0.1.0"
 authors = ["Semio"]
 edition = "2018"
+license = "BSD-3-Clause"
+license-file = "../LICENSE"
 
 
 [dependencies]

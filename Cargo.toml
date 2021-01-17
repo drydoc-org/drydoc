@@ -4,5 +4,8 @@ members = [
   "drydoc",
   "drydoc-gen",
   "drydoc-serve",
-  "drydoc-rpc"
+  "drydoc-model",
+  "drydoc-ipc",
+  "drydoc-pkg",
+  "drydoc-pkg-manager",
 ]

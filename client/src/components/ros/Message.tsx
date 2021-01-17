@@ -36,11 +36,11 @@ export class Message extends React.Component<Props> {
       );
     }
 
+    const { comment } = message;
+
     return (
       <Container>
-        {message.comment && message.comment.length > 0 ? <div>
-          {message.comment}
-        </div> : undefined}
+        {comment && comment.length > 0 ? <div>{comment}</div> : undefined}
         {statements}
       </Container>
     );

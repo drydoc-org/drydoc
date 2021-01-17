@@ -1,0 +1,15 @@
+[package]
+name = "drydoc-pkg-server"
+version = "0.1.0"
+authors = ["Braden McDorman <bmcdorman@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "0.2", features = [ "full" ] }
+warp = "0.2"
+pretty_env_logger = "0.4"
+clap = "3.0.0-beta.2"
+dirs = "3.0.1"
+drydoc-pkg-model = { path = "../drydoc-pkg-model" }
