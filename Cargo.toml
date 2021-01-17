@@ -1,11 +1,11 @@
 [workspace]
 
 members = [
-  "drydoc",
-  "drydoc-gen",
-  "drydoc-serve",
-  "drydoc-model",
-  "drydoc-ipc",
-  "drydoc-pkg",
-  "drydoc-pkg-manager",
+  "crates/drydoc",
+  "crates/drydoc-gen",
+  "crates/drydoc-serve",
+  "crates/drydoc-model",
+  "crates/drydoc-ipc",
+  "crates/drydoc-pkg",
+  "crates/drydoc-pkg-manager",
 ]

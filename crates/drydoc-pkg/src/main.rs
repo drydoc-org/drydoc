@@ -22,7 +22,8 @@ pub struct Opts {
 
 #[derive(Clap, Debug)]
 pub enum Command {
-  Get(Get)
+  Get(Get),
+  Installed(Installed)
 }
 
 #[derive(Clap, Debug)]
@@ -33,9 +34,16 @@ pub struct Get {
   version: String
 }
 
+#[derive(Clap, Debug)]
+pub struct Installed {
+  #[clap(long)]
+  package: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
   pretty_env_logger::init();
+
 
   let Opts { url, repository_dir, command } = Opts::parse();
 
@@ -56,6 +64,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Command::Get(get) => {
       manager.get(get.package.as_str(), &semver::VersionReq::parse(get.version.as_str())?).await?;
       info!("Done!");
+    },
+    Command::Installed(installed) => {
+      let packages = manager.list_installed().await?;
+      for (package_name, version) in packages {
+        if let Some(name) = &installed.package {
+          if &package_name != name {
+            continue;
+          }
+        }
+
+        println!("{}@{}", package_name, version);
+      }
     }
   }
 

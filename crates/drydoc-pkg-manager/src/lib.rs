@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-use std::{collections::{HashMap, HashSet}, path::{Path, PathBuf}, str::FromStr};
+use std::{collections::{HashMap, HashSet}, fs::read_dir, path::{Path, PathBuf}, str::FromStr};
 
 use std::error::Error;
 use async_trait::async_trait;
@@ -10,7 +10,7 @@ use sha2::{Sha256, Digest};
 
 use serde_with::{serde_as, DisplayFromStr};
 
-use log::{info, debug};
+use log::{info};
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub struct Version {
@@ -235,6 +235,37 @@ impl<F: Fetcher> Manager<F> {
     self.remote_cache = Some(remote_cache);
 
     Ok(())
+  }
+
+  pub async fn list_installed(&self) -> Result<Vec<(String, Version)>, std::io::Error> {
+    let dir = read_dir(&self.dir)?;
+
+    let mut ret = Vec::new();
+
+    for entry in dir {
+      let entry = entry?;
+      let path = entry.path();
+      if !path.is_dir() {
+        continue;
+      }
+      let package_name = path.file_name().unwrap().to_str().unwrap();
+
+
+      let package_dir = read_dir(&path)?;
+      for version in package_dir {
+        let version = version?;
+        let path = version.path();
+        if !path.is_dir() {
+          continue;
+        }
+
+        let version_name = path.file_name().unwrap().to_str().unwrap();
+
+        ret.push((package_name.to_string(), Version::from_str(version_name).unwrap()));
+      }
+    }
+
+    Ok(ret)
   }
 
   pub async fn get(&mut self, name: &str, version_req: &semver::VersionReq) -> Result<(PathBuf, Artifact), Box<dyn Error>> {

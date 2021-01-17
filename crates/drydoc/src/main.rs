@@ -7,13 +7,11 @@ fn run() -> Result<()> {
   let current_exe = current_exe()?;
   let exe_dir = current_exe.parent().unwrap();
   let args: Vec<String> = args().skip(1).collect();
-  println!("EXE DIR: {:?}", exe_dir);
-
 
   if let Some((head, tail)) = args.split_first() {
     let mut path = exe_dir.to_path_buf();
     path.push(format!("drydoc-{}{}", head, if cfg!(windows) { ".exe" } else { "" }));
-    println!("PATH: {:?}", path);
+
     let cmd = Command::new(path)
       .args(tail)
       .stdout(Stdio::inherit())
