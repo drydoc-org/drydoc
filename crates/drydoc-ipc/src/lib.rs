@@ -11,6 +11,12 @@ pub struct MessageProcessor {
 }
 
 impl MessageProcessor {
+  pub fn new() -> Self {
+    Self {
+      pending: VecDeque::new()
+    }
+  }
+  
   pub fn submit(&mut self, data: &[u8]) {
     self.pending.extend(data);
   }

@@ -27,6 +27,7 @@ mod ns;
 mod emitter;
 mod preprocessor;
 mod progress;
+mod generator2;
 
 use emitter::Emitter;
 

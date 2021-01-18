@@ -4,7 +4,7 @@ use super::actor::{Actor, Addr, Receiver};
 use super::config::Rule;
 
 use std::{collections::HashMap, path::PathBuf};
-use tokio::sync::oneshot::{Sender, channel};
+use tokio::{io::{AsyncRead, AsyncWrite}, sync::oneshot::{Sender, channel}};
 
 use super::bundle::Bundle;
 
@@ -18,6 +18,7 @@ pub mod util;
 pub mod ros;
 pub mod rpc;
 
+pub mod ipc;
 
 pub enum GeneratorsMsg {
   Get {
@@ -128,3 +129,4 @@ impl Addr<GeneratorMsg> {
     rx.await.unwrap()
   }
 }
+

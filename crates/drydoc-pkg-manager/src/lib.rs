@@ -12,6 +12,9 @@ use serde_with::{serde_as, DisplayFromStr};
 
 use log::{info};
 
+#[macro_use]
+extern crate lazy_static;
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub struct Version {
   pub major: u64,
@@ -56,6 +59,18 @@ pub struct TargetTriple {
 }
 
 impl TargetTriple {
+  pub fn unknown() -> &'static Self {
+    lazy_static! {
+      static ref UNKNOWN: TargetTriple = TargetTriple {
+        machine: "unknown".to_string(),
+        vendor: "unknown".to_string(),
+        os: "unknown".to_string(),
+      };
+    }
+
+    &UNKNOWN
+  }
+
   pub fn parse<S: AsRef<str>>(s: S) -> Self {
     let parts: Vec<&str> = s.as_ref().split('-').collect();
     Self {
@@ -95,9 +110,37 @@ pub struct ArtifactReference {
   pub sha256: String
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Artifact {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CommandArtifact {
   pub entrypoint: String
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RendererArtifact {
+  
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum IpcChannel {
+  Stdio,
+  Tcp {
+    port: Option<usize>
+  },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GeneratorArtifact {
+  pub entrypoint: String,
+  pub ipc_channel: IpcChannel
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum Artifact {
+  Command(CommandArtifact),
+  Renderer(RendererArtifact),
+  Generator(GeneratorArtifact)
 }
 
 #[serde_as]
@@ -106,7 +149,8 @@ pub struct PackageVersion {
   #[serde_as(as = "DisplayFromStr")]
   pub version: Version,
   #[serde_as(as = "HashMap<DisplayFromStr, _>")]
-  pub target_artifacts: HashMap<TargetTriple, ArtifactReference>
+  pub target_artifacts: HashMap<TargetTriple, ArtifactReference>,
+  pub dependencies: Vec<String>
 }
 
 #[derive(Serialize, Deserialize)]
