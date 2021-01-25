@@ -87,7 +87,7 @@ impl CopyGenerator {
       url: url.clone()
     });
 
-    let mut bundle = Bundle::new(Manifest::new(page_id.clone(), pages));
+    let mut bundle = Bundle::new(Manifest::new(page_id.clone(), HashMap::new(), pages));
     bundle.insert_entry(url, RealFile::open(path)?)?;
     Ok(bundle)
   }

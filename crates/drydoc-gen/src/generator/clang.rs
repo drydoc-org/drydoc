@@ -140,7 +140,7 @@ impl ClangGenerator {
     let root_id = root_page.id.clone();
     pages.insert(root_page.id.clone(), root_page);
 
-    let mut bundle = Bundle::new(Manifest::new(root_id, pages));
+    let mut bundle = Bundle::new(Manifest::new(root_id, HashMap::new(), pages));
     for (name, entity) in symbols.iter() {
       let mut names = entity.children(&symbols).unwrap_or(HashSet::new());
       if let Some(linked) = entity.linked(&symbols) {

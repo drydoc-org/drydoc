@@ -1,14 +1,11 @@
-mod config;
 mod page;
-mod bundle;
 mod fetch;
 mod resource;
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{path::Path, collections::HashMap, path::PathBuf};
 
 use clap::Clap;
-use config::{Config, Decl, Unit};
-use handlebars::Path;
+use drydoc_pkg_manager::{Manager, UrlFetcher, VersionReq};
 use page::Id;
 mod uri;
 mod generator;
@@ -17,7 +14,6 @@ mod fs2;
 
 use generator::{Generators, GeneratorsMsg, GenerateError};
 
-use bundle::{Bundle, Manifest};
 use tokio::fs::File;
 
 use std::future::Future;
@@ -27,7 +23,9 @@ mod ns;
 mod emitter;
 mod preprocessor;
 mod progress;
-mod generator2;
+mod ipc;
+
+use drydoc_model::decl::{Decl, Generate, Import};
 
 use emitter::Emitter;
 
@@ -48,39 +46,47 @@ pub struct GenOpts {
 
   /// Output directory
   #[clap(short, long, default_value = "html")]
-  output: String
+  output: String,
+
+  #[clap(long, default_value = "https://semio-ai.github.io/drydoc-packages")]
+  repository_url: String,
+
+  #[clap(long)]
+  repository_dir: Option<String>,
 }
 
 
 
-async fn gen_unit(unit: Unit, generators: Addr<GeneratorsMsg>, namespace: Arc<ns::Namespace>, path: PathBuf) -> Result<Bundle, GenerateError> {
+async fn gen_unit(config: Generate, generators: Addr<GeneratorsMsg>, namespace: Arc<ns::Namespace>, path: PathBuf) -> Result<Bundle, GenerateError> {
   let mut sub_bundles = Vec::new();
 
-  let child_ns = namespace.child(unit.id.0);
-  if let Some(children) = unit.children {
+  let child_ns = namespace.child(config.id);
+  if let Some(children) = config.children {
     for child in children {
       let path = path.clone();
       sub_bundles.push(gen_decl(child, generators.clone(), child_ns.clone(), path).await?);  
     }
   }
 
-  match generators.get(unit.rule.name.clone()).await {
-    Some(generator) => {
-      let mut bundle = generator.generate(unit.rule, child_ns, path).await?;
-      for sub_bundle in sub_bundles {
-        bundle.merge(sub_bundle).unwrap();
-      }
-      Ok(bundle)
-    },
-    None => {
-      Err(GenerateError::InvalidParameter {
-        name: "rule.name".to_string(),
-        message: format!("{:?} doesn't match any generator", unit.rule.name)
-      })
-    }
-  }
+  let parts = config.using.split("@").collect::<Vec<&str>>();
 
-  
+
+  let (name, version_req) = if parts.len() == 1 {
+    (parts[0], VersionReq::parse("*").unwrap())
+  } else if parts.len() == 2 {
+    (parts[1], VersionReq::parse(parts[2]).unwrap())
+  } else {
+    panic!("Invalid generator string")
+  };
+
+
+  let gen = generators.get(name.to_string(), version_req).await.unwrap();
+
+  let mut bundle = gen.generate().await?;
+  for sub_bundle in sub_bundles {
+    bundle.merge(sub_bundle).unwrap();
+  }
+  Ok(bundle)
 }
 
 use tokio::io::AsyncReadExt;
@@ -130,12 +136,10 @@ impl log::Log for Logger {
 
 async fn gen() -> Result<(), Box<dyn std::error::Error>> {
   let opts = GenOpts::parse();
-  let uri = uri::to_uri(opts.config.as_str());
-  let contents = fetch::fetch(&uri).await?;
-  let contents = String::from_utf8(contents.into()).unwrap();
+  let contents = tokio::fs::read_to_string(opts.config).await?;
 
   let raw_config: serde_yaml::Value = serde_yaml::from_str(contents.as_str())?;
-  let decl: Config = serde_yaml::from_value(preprocessor::preprocess(raw_config, std::sync::Arc::new(std::env::current_dir()?)).await?)?;
+  let decl: Decl = serde_yaml::from_value(preprocessor::preprocess(raw_config, std::sync::Arc::new(std::env::current_dir()?)).await?)?;
 
   log::set_logger(&Logger {
     level: log::Level::Debug
@@ -144,13 +148,9 @@ async fn gen() -> Result<(), Box<dyn std::error::Error>> {
   log::set_max_level(log::LevelFilter::Debug);
 
 
-  let mut generators = Generators::new();
-  generators.insert_generator("copy", generator::copy::CopyGenerator::new()).await;
-  generators.insert_generator("clang", generator::clang::ClangGenerator::new()).await;
-  generators.insert_generator("ros", generator::ros::RosGenerator::new()).await;
-
-
-  let generators = generators.spawn();
+  let pkg_mgr = Manager::new(UrlFetcher::new(opts.repository_url), &Path::parse(opts.repository_dir).unwrap());
+  let mut generators = Generators::new(pkg_mgr).spawn();
+  
   let bundle = gen_decl(decl.decl, generators.clone(), ns::Namespace::new("root"), opts.config.as_str().into()).await?;
 
   let emitter = emitter::html::Html::new(opts.output);

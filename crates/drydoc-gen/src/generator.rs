@@ -8,6 +8,10 @@ use tokio::{io::{AsyncRead, AsyncWrite}, sync::oneshot::{Sender, channel}};
 
 use super::bundle::Bundle;
 
+use crate::ipc::{IpcMsg, pipe};
+
+use drydoc_pkg_manager::{Artifact, Fetcher, Manager as PkgMgr, Version, VersionReq};
+
 use std::sync::Arc;
 
 use derive_more::*;
@@ -18,42 +22,73 @@ pub mod util;
 pub mod ros;
 pub mod rpc;
 
-pub mod ipc;
-
+use tokio::process::Command;
+use std::process::Stdio;
 pub enum GeneratorsMsg {
   Get {
     name: String,
-    sender: Sender<Option<Addr<GeneratorMsg>>>
+    version_req: VersionReq,
+    sender: Sender<Option<Addr<IpcMsg>>>
   },
 }
 
-pub struct Generators {
-  generators: HashMap<String, Addr<GeneratorMsg>>
+pub struct Generators<F>
+where
+  F: Fetcher + Send + Sync
+{
+  pkg_mgr: PkgMgr<F>,
+  generators: HashMap<String, Vec<(Version, Addr<IpcMsg>)>>
 }
 
-impl Generators {
-  pub fn new() -> Self {
+impl<F> Generators<F>
+where
+  F: Fetcher + Send + Sync
+{
+  pub fn new(pkg_mgr: PkgMgr<F>) -> Self {
+
     Self {
+      pkg_mgr,
       generators: HashMap::new()
     }
   }
 
-  pub async fn insert_generator<N, G>(&mut self, name: N, generator: G) -> Option<Addr<GeneratorMsg>>
-  where
-    N: Into<String>,
-    G: Actor<Msg = GeneratorMsg>
-  {
-    self.generators.insert(name.into(), generator.spawn())
+  async fn get(&mut self, name: String, version_req: VersionReq) -> Option<Addr<IpcMsg>> {
+    if let Some(versions) = self.generators.get(&name) {
+      for (version, addr) in versions.iter() {
+        if version_req.matches(&version.clone().into()) {
+          return Some(addr.clone());
+        }
+      }
+    }
+    
+    let (mut path, version, artifact) = self.pkg_mgr.get(name.as_str(), &version_req).await.unwrap();
+
+    if let Artifact::Generator(gen) = artifact {
+
+      path.push(gen.entrypoint);
+      let cmd = Command::new(&path)
+        .stdout(std::process::Stdio::piped())
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+      let addr = pipe(cmd.stdout.unwrap(), cmd.stdin.unwrap()).await;
+      let entry = (version, addr.clone());
+      if let Some(gen) = self.generators.get_mut(&name) {
+        gen.push(entry);
+      } else {
+        self.generators.insert(name, vec![ entry ]);
+      }
+      Some(addr)
+    } else {
+      panic!("Expected generator artifact")
+    }
   }
 
-  async fn run(self, mut rx: Receiver<GeneratorsMsg>) {
+  async fn run(mut self, mut rx: Receiver<GeneratorsMsg>) {
     while let Some(msg) = rx.recv().await {
       match msg {
-        GeneratorsMsg::Get { name, sender } => {
-          let _ = sender.send(match self.generators.get(&name) {
-            Some(addr) => Some(addr.clone()),
-            None => None
-          });
+        GeneratorsMsg::Get { name, version_req, sender } => {
+          let _ = sender.send(self.get(name, version_req).await);
         }
       }
     }
@@ -62,7 +97,10 @@ impl Generators {
   }
 }
 
-impl Actor for Generators {
+impl<F> Actor for Generators<F>
+where
+  F: 'static + Fetcher + Send + Sync
+{
   type Msg = GeneratorsMsg;
 
   fn spawn(self) -> Addr<Self::Msg> {
@@ -73,9 +111,9 @@ impl Actor for Generators {
 }
 
 impl Addr<GeneratorsMsg> {
-  pub async fn get(&self, name: String) -> Option<Addr<GeneratorMsg>> {
+  pub async fn get(&self, name: String, version_req: VersionReq) -> Option<Addr<IpcMsg>> {
     let (tx, rx) = channel();
-    let _ = self.send(GeneratorsMsg::Get { name, sender: tx });
+    let _ = self.send(GeneratorsMsg::Get { name, version_req, sender: tx });
     rx.await.unwrap()
   }
 }

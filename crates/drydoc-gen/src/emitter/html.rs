@@ -1,6 +1,6 @@
 use super::Emitter;
 
-use crate::bundle::Bundle;
+use drydoc_model::bundle::Bundle;
 use std::{io::Result, path::{Path, PathBuf}};
 
 use std::iter::FromIterator;

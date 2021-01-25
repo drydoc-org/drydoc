@@ -3,13 +3,25 @@ use std::sync::{Arc, Weak};
 
 pub type Receiver<T> = UnboundedReceiver<T>;
 
+pub mod map;
+
+use derive_more::{Display, Error};
+
+#[derive(Display, Debug, Error)]
 pub enum SendError {
-  Internal
+  Internal,
+  RecvError
 }
 
 impl<T> From<tokio::sync::mpsc::error::SendError<T>> for SendError {
   fn from(_: tokio::sync::mpsc::error::SendError<T>) -> Self {
     Self::Internal
+  }
+}
+
+impl From<tokio::sync::oneshot::error::RecvError> for SendError {
+  fn from(_: tokio::sync::oneshot::error::RecvError) -> Self {
+    Self::RecvError
   }
 }
 
@@ -139,7 +151,7 @@ where
 impl<T> WeakAddr<T>
   where T: Send + Sync
 {
-  pub fn upgrade<V: Into<T>>(&self) -> Option<Addr<T>> {
+  pub fn upgrade(&self) -> Option<Addr<T>> {
     self.imp.upgrade().map(|imp| Addr { imp })
   }
 }

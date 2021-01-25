@@ -88,11 +88,35 @@ impl LocalFolder {
   pub fn path(&self) -> &Path {
     self.path.as_ref()
   }
+
+  pub fn to_virtual(self) -> std::io::Result<VirtualFolder> {
+    let mut ret = VirtualFolder::new();
+
+    for entry in std::fs::read_dir(&self.path)? {
+      let entry = entry?;
+      let path = entry.path();
+      ret.entries.insert(entry.file_name().to_str().unwrap().to_string(), if path.is_dir() {
+        Entry::Folder(LocalFolder::new(&path).into())
+      } else {
+        Entry::File(LocalFile::new(&path).into())
+      });
+    }
+
+    Ok(ret)
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VirtualFolder {
   entries: HashMap<String, Entry>
+}
+
+impl VirtualFolder {
+  pub fn new() -> Self {
+    Self {
+      entries: HashMap::new()
+    }
+  }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -102,7 +126,19 @@ pub enum Folder {
 }
 
 impl Folder {
-  
+  pub fn merge<O: Into<Self>>(self, other: O) -> std::io::Result<Self> {
+    let other = other.into().to_virtual()?;
+    let mut this = self.to_virtual()?;
+    this.entries.extend(other.entries);
+    Ok(this.into())
+  }
+
+  pub fn to_virtual(self) -> std::io::Result<VirtualFolder> {
+    match self {
+      Self::Local(local) => local.to_virtual(),
+      Self::Virtual(virt) => Ok(virt)
+    }
+  }
 }
 
 impl From<VirtualFolder> for Folder {

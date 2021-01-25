@@ -165,7 +165,7 @@ impl RosGenerator {
 
     
 
-    let mut bundle = Bundle::new(Manifest::new(page_id.clone(), pages));
+    let mut bundle = Bundle::new(Manifest::new(page_id.clone(), HashMap::new(), pages));
 
     for (key, value) in out_files {
       bundle.insert_entry(key, VirtFile::new(value.into_boxed_slice()))?;

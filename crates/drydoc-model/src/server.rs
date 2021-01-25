@@ -35,9 +35,33 @@ pub enum RequestData {
   Initialize(InitializeRequest),
   OpenContext(OpenContextRequest),
   CloseContext(CloseContextRequest),
-  Generate(GenerateRequest),
-  
+  Generate(GenerateRequest),  
 }
+
+impl From<InitializeRequest> for RequestData {
+  fn from(value: InitializeRequest) -> Self {
+    Self::Initialize(value)
+  }
+}
+
+impl From<OpenContextRequest> for RequestData {
+  fn from(value: OpenContextRequest) -> Self {
+    Self::OpenContext(value)
+  }
+}
+
+impl From<CloseContextRequest> for RequestData {
+  fn from(value: CloseContextRequest) -> Self {
+    Self::CloseContext(value)
+  }
+}
+
+impl From<GenerateRequest> for RequestData {
+  fn from(value: GenerateRequest) -> Self {
+    Self::Generate(value)
+  }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Request {
   pub id: u64,
@@ -59,4 +83,22 @@ pub enum MessageData {
   Event(Event),
   Request(Request),
   Response(Response)
+}
+
+impl From<Event> for MessageData {
+  fn from(value: Event) -> Self {
+    Self::Event(value)
+  }
+}
+
+impl From<Request> for MessageData {
+  fn from(value: Request) -> Self {
+    Self::Request(value)
+  }
+}
+
+impl From<Response> for MessageData {
+  fn from(value: Response) -> Self {
+    Self::Response(value)
+  }
 }

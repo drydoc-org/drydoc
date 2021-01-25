@@ -4,15 +4,15 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Generate {
-  id: String,
-  using: String,
-  with: HashMap<String, String>,
-  children: Option<Vec<Decl>>
+  pub id: String,
+  pub using: String,
+  pub with: HashMap<String, String>,
+  pub children: Option<Vec<Decl>>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Import {
-  path: String
+  pub path: String
 }
 
 #[derive(Serialize, Deserialize, Debug)]

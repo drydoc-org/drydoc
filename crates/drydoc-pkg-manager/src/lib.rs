@@ -15,6 +15,8 @@ use log::{info};
 #[macro_use]
 extern crate lazy_static;
 
+pub type VersionReq = semver::VersionReq;
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub struct Version {
   pub major: u64,
@@ -312,7 +314,7 @@ impl<F: Fetcher> Manager<F> {
     Ok(ret)
   }
 
-  pub async fn get(&mut self, name: &str, version_req: &semver::VersionReq) -> Result<(PathBuf, Artifact), Box<dyn Error>> {
+  pub async fn get(&mut self, name: &str, version_req: &semver::VersionReq) -> Result<(PathBuf, Version, Artifact), Box<dyn Error>> {
     self.update().await?;
 
     let RemoteCache { packages, .. } = self.remote_cache.as_ref().unwrap();
@@ -374,7 +376,7 @@ impl<F: Fetcher> Manager<F> {
       let artifact: Artifact = serde_json::from_str(artifact.as_str())?;
       dir.pop();
       
-      Ok((dir, artifact))
+      Ok((dir, best_match.version, artifact))
     } else {
       Err(Box::new(GetError::PackageNotFound))
     }

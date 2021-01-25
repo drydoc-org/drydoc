@@ -1,6 +1,6 @@
 use std::io::Result;
 
-use crate::bundle::Bundle;
+use drydoc_model::bundle::Bundle;
 
 pub mod html;
 

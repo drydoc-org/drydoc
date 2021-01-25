@@ -51,4 +51,8 @@ impl Message {
   pub fn data(&self) -> &[u8] {
     &self.0[1 ..]
   }
+
+  pub fn raw(&self) -> &[u8] {
+    &self.0
+  }
 }
