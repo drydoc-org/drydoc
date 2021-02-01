@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
 
@@ -7,17 +7,17 @@ pub struct Generate {
   pub id: String,
   pub using: String,
   pub with: HashMap<String, String>,
-  pub children: Option<Vec<Decl>>
+  pub children: Option<Vec<Decl>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Import {
-  pub path: String
+  pub path: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum Decl {
   Generate(Generate),
-  Import(Import)
+  Import(Import),
 }

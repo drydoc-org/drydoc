@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub enum Encoding {
@@ -12,7 +12,7 @@ impl Encoding {
     match self {
       Self::Json => 0,
       Self::Pickle => 1,
-      Self::Bincode => 2
+      Self::Bincode => 2,
     }
   }
 
@@ -21,7 +21,7 @@ impl Encoding {
       0 => Some(Self::Json),
       1 => Some(Self::Pickle),
       2 => Some(Self::Bincode),
-      _ => None
+      _ => None,
     }
   }
 }

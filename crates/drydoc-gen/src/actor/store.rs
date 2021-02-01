@@ -7,26 +7,17 @@ use tokio::sync::oneshot::{channel, Sender};
 pub struct Insert<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   pub key: K,
   pub value: V,
   pub res: Sender<Option<V>>,
 }
 
-pub struct Get<K, V>
-where
-  K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
-{
-  pub key: K,
-  pub res: Sender<Option<V>>,
-}
-
 pub struct Remove<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   pub key: K,
   pub res: Sender<Option<V>>,
@@ -35,56 +26,45 @@ where
 pub enum Msg<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   Insert(Insert<K, V>),
-  Get(Get<K, V>),
   Remove(Remove<K, V>),
 }
 
 impl<K, V> From<Insert<K, V>> for Msg<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   fn from(value: Insert<K, V>) -> Self {
     Self::Insert(value)
   }
 }
 
-impl<K, V> From<Get<K, V>> for Msg<K, V>
-where
-  K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
-{
-  fn from(value: Get<K, V>) -> Self {
-    Self::Get(value)
-  }
-}
-
 impl<K, V> From<Remove<K, V>> for Msg<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   fn from(value: Remove<K, V>) -> Self {
     Self::Remove(value)
   }
 }
 
-/// An actor-based implementation of a HashMap
-pub struct Map<K, V>
+/// An actor-based implementation of a HashMap.
+pub struct Store<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   entries: HashMap<K, V>,
 }
 
-impl<K, V> Map<K, V>
+impl<K, V> Store<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   pub fn new() -> Self {
     Self {
@@ -98,9 +78,6 @@ where
         Msg::Insert(Insert { key, value, res }) => {
           let _ = res.send(self.entries.insert(key, value));
         }
-        Msg::Get(Get { key, res }) => {
-          let _ = res.send(self.entries.get(&key).map(|value| value.clone()));
-        }
         Msg::Remove(Remove { key, res }) => {
           let _ = res.send(self.entries.remove(&key));
         }
@@ -109,10 +86,10 @@ where
   }
 }
 
-impl<K, V> Actor for Map<K, V>
+impl<K, V> Actor for Store<K, V>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   type Msg = Msg<K, V>;
 
@@ -126,7 +103,7 @@ where
 impl<K, V> Addr<Msg<K, V>>
 where
   K: 'static + Send + Sync + Eq + Hash,
-  V: 'static + Send + Sync + Clone,
+  V: 'static + Send + Sync,
 {
   pub async fn insert(&self, key: K, value: V) -> Result<Option<V>, SendError> {
     let (tx, rx) = channel();
@@ -135,12 +112,6 @@ where
       value,
       res: tx,
     })?;
-    Ok(rx.await.unwrap())
-  }
-
-  pub async fn get(&self, key: K) -> Result<Option<V>, SendError> {
-    let (tx, rx) = channel();
-    self.send(Get { key, res: tx })?;
     Ok(rx.await.unwrap())
   }
 

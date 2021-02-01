@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum LogLevel {
@@ -7,7 +7,7 @@ pub enum LogLevel {
   Info,
   Warning,
   Error,
-  Fatal  
+  Fatal,
 }
 
 impl LogLevel {
@@ -25,5 +25,5 @@ impl LogLevel {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Log {
   level: LogLevel,
-  message: String
+  message: String,
 }

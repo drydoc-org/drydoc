@@ -1,43 +1,44 @@
-mod page;
+//! Given a `drydoc.yaml` file, generate a website.
+
 mod fetch;
 mod resource;
 
-use std::{path::Path, collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::Clap;
-use drydoc_pkg_manager::{Manager, UrlFetcher, VersionReq};
-use page::Id;
-mod uri;
-mod generator;
-mod actor;
-mod fs2;
+use drydoc_model::{
+  bundle::Bundle,
+  decl::{Decl, Generate, Import},
+  ns::Namespace,
+};
 
-use generator::{Generators, GeneratorsMsg, GenerateError};
+use drydoc_pkg_manager::{Manager as PkgMgr, UrlFetcher, VersionReq};
+mod actor;
+mod uri;
 
 use tokio::fs::File;
 
-use std::future::Future;
 use actor::{Actor, Addr};
+use std::future::Future;
 use std::pin::Pin;
-mod ns;
 mod emitter;
+mod generator_mgr;
+mod ipc;
 mod preprocessor;
 mod progress;
-mod ipc;
 
-use drydoc_model::decl::{Decl, Generate, Import};
+use generator_mgr::{GeneratorMgr, GeneratorMgrMsg};
+
+use std::error::Error;
 
 use emitter::Emitter;
 
 #[macro_use]
 extern crate lazy_static;
 
-#[macro_use]
-extern crate lalrpop_util;
-
 use std::sync::Arc;
 
-/// Generate documentation
+/// Generate documentation from a drydoc.yaml file.
 #[derive(Clap, Debug)]
 pub struct GenOpts {
   /// The configuration file to generate from
@@ -55,59 +56,69 @@ pub struct GenOpts {
   repository_dir: Option<String>,
 }
 
-
-
-async fn gen_unit(config: Generate, generators: Addr<GeneratorsMsg>, namespace: Arc<ns::Namespace>, path: PathBuf) -> Result<Bundle, GenerateError> {
+async fn gen_unit(
+  config: Generate,
+  mgr: Addr<GeneratorMgrMsg>,
+  namespace: Arc<Namespace>,
+  path: PathBuf,
+) -> Result<Bundle, Box<dyn Error>> {
   let mut sub_bundles = Vec::new();
 
   let child_ns = namespace.child(config.id);
   if let Some(children) = config.children {
     for child in children {
       let path = path.clone();
-      sub_bundles.push(gen_decl(child, generators.clone(), child_ns.clone(), path).await?);  
+      sub_bundles.push(gen_decl(child, mgr.clone(), child_ns.clone(), path).await?);
     }
+  }
+
+  lazy_static! {
+    static ref WILDCARD: VersionReq = VersionReq::parse("*").unwrap();
   }
 
   let parts = config.using.split("@").collect::<Vec<&str>>();
 
-
   let (name, version_req) = if parts.len() == 1 {
-    (parts[0], VersionReq::parse("*").unwrap())
+    (parts[0], WILDCARD.clone())
   } else if parts.len() == 2 {
     (parts[1], VersionReq::parse(parts[2]).unwrap())
   } else {
     panic!("Invalid generator string")
   };
 
+  let ipc = mgr.get_or_start(name, version_req).await.unwrap();
 
-  let gen = generators.get(name.to_string(), version_req).await.unwrap();
-
-  let mut bundle = gen.generate().await?;
+  let path = path.to_str().unwrap().to_string();
+  let mut res = ipc
+    .generate(0, namespace.clone(), config.with, path)
+    .await?;
   for sub_bundle in sub_bundles {
-    bundle.merge(sub_bundle).unwrap();
+    res.bundle = res.bundle.merge(sub_bundle).unwrap();
   }
-  Ok(bundle)
+  Ok(res.bundle)
 }
 
 use tokio::io::AsyncReadExt;
 
-fn gen_decl(decl: Decl, generators: Addr<GeneratorsMsg>, namespace: Arc<ns::Namespace>, decl_path: PathBuf) -> Pin<Box<dyn Future<Output = Result<Bundle, GenerateError>>>> {
+fn gen_decl(
+  decl: Decl,
+  mgr: Addr<GeneratorMgrMsg>,
+  namespace: Arc<Namespace>,
+  decl_path: PathBuf,
+) -> Pin<Box<dyn Future<Output = Result<Bundle, Box<dyn Error>>>>> {
   Box::pin(async move {
     match decl {
-      Decl::Import(import) => {
+      Decl::Import(Import { path }) => {
         let mut abs_path = PathBuf::new();
         abs_path.push(decl_path.parent().unwrap());
-        abs_path.push(import.uri.as_str());
+        abs_path.push(&path);
         let mut file = File::open(&abs_path).await?;
         let mut contents = String::new();
         file.read_to_string(&mut contents).await?;
-        let config: Config = serde_yaml::from_str(contents.as_str()).unwrap();
-        Ok(gen_decl(config.decl, generators.clone(), namespace, abs_path).await?)
-      },
-      Decl::Unit(unit) => {
-        println!("unit: {:?}", &unit);
-        Ok(gen_unit(unit, generators.clone(), namespace, decl_path).await?)
+        let config: Decl = serde_yaml::from_str(contents.as_str()).unwrap();
+        Ok(gen_decl(config, mgr.clone(), namespace, abs_path).await?)
       }
+      Decl::Generate(generate) => Ok(gen_unit(generate, mgr.clone(), namespace, decl_path).await?),
     }
   })
 }
@@ -116,7 +127,7 @@ use colored::*;
 use log::info;
 
 struct Logger {
-  level: log::Level
+  level: log::Level,
 }
 
 impl log::Log for Logger {
@@ -126,32 +137,46 @@ impl log::Log for Logger {
 
   fn log(&self, record: &log::Record) {
     if self.enabled(record.metadata()) {
-      println!("{}: {}", format!("{}", record.level()).blue(), record.args());
+      println!(
+        "{}: {}",
+        format!("{}", record.level()).blue(),
+        record.args()
+      );
     }
   }
 
   fn flush(&self) {}
 }
 
-
 async fn gen() -> Result<(), Box<dyn std::error::Error>> {
   let opts = GenOpts::parse();
-  let contents = tokio::fs::read_to_string(opts.config).await?;
+  let contents = tokio::fs::read_to_string(&opts.config).await?;
 
   let raw_config: serde_yaml::Value = serde_yaml::from_str(contents.as_str())?;
-  let decl: Decl = serde_yaml::from_value(preprocessor::preprocess(raw_config, std::sync::Arc::new(std::env::current_dir()?)).await?)?;
+  let decl: Decl = serde_yaml::from_value(
+    preprocessor::preprocess(raw_config, Arc::new(std::env::current_dir()?)).await?,
+  )?;
 
   log::set_logger(&Logger {
-    level: log::Level::Debug
-  }).unwrap();
+    level: log::Level::Debug,
+  })
+  .unwrap();
 
   log::set_max_level(log::LevelFilter::Debug);
 
+  let pkg_mgr = PkgMgr::new(
+    UrlFetcher::new(opts.repository_url),
+    &opts.repository_dir.unwrap(),
+  );
+  let gen_mgr = GeneratorMgr::new(pkg_mgr).spawn();
 
-  let pkg_mgr = Manager::new(UrlFetcher::new(opts.repository_url), &Path::parse(opts.repository_dir).unwrap());
-  let mut generators = Generators::new(pkg_mgr).spawn();
-  
-  let bundle = gen_decl(decl.decl, generators.clone(), ns::Namespace::new("root"), opts.config.as_str().into()).await?;
+  let bundle = gen_decl(
+    decl,
+    gen_mgr,
+    Namespace::new("root"),
+    PathBuf::from(opts.config.as_str()),
+  )
+  .await?;
 
   let emitter = emitter::html::Html::new(opts.output);
   emitter.emit(bundle).await?;
@@ -165,7 +190,7 @@ async fn main() {
     Err(err) => {
       eprintln!("ERROR: {:?}", err.source());
       std::process::exit(1);
-    },
+    }
     _ => {
       std::process::exit(0);
     }

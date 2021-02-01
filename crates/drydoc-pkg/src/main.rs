@@ -1,12 +1,10 @@
 use std::error::Error;
 
-use dirs::home_dir;
 use clap::Clap;
+use dirs::home_dir;
 use drydoc_pkg_manager::{Manager, UrlFetcher};
 
 use log::{debug, info};
-
-
 
 #[derive(Clap, Debug)]
 pub struct Opts {
@@ -17,13 +15,13 @@ pub struct Opts {
   repository_dir: Option<String>,
 
   #[clap(subcommand)]
-  command: Command
+  command: Command,
 }
 
 #[derive(Clap, Debug)]
 pub enum Command {
   Get(Get),
-  Installed(Installed)
+  Installed(Installed),
 }
 
 #[derive(Clap, Debug)]
@@ -31,7 +29,7 @@ pub struct Get {
   package: String,
 
   #[clap(short, long, default_value = "*")]
-  version: String
+  version: String,
 }
 
 #[derive(Clap, Debug)]
@@ -44,8 +42,11 @@ pub struct Installed {
 async fn main() -> Result<(), Box<dyn Error>> {
   pretty_env_logger::init();
 
-
-  let Opts { url, repository_dir, command } = Opts::parse();
+  let Opts {
+    url,
+    repository_dir,
+    command,
+  } = Opts::parse();
 
   let repository_dir = if let Some(repository_dir) = repository_dir {
     repository_dir.into()
@@ -62,9 +63,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
   match command {
     Command::Get(get) => {
-      manager.get(get.package.as_str(), &semver::VersionReq::parse(get.version.as_str())?).await?;
+      manager
+        .get(
+          get.package.as_str(),
+          &semver::VersionReq::parse(get.version.as_str())?,
+        )
+        .await?;
       info!("Done!");
-    },
+    }
     Command::Installed(installed) => {
       let packages = manager.list_installed().await?;
       for (package_name, version) in packages {

@@ -13,7 +13,10 @@ pub async fn fetch(uri: &Url) -> Result<Box<[u8]>, tokio::io::Error> {
       let mut contents = Vec::new();
       file.read_to_end(&mut contents).await?;
       Ok(contents.into_boxed_slice())
-    },
-    _ => Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidInput, "URI scheme not recognized"))
+    }
+    _ => Err(tokio::io::Error::new(
+      tokio::io::ErrorKind::InvalidInput,
+      "URI scheme not recognized",
+    )),
   }
 }

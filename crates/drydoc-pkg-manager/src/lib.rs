@@ -1,16 +1,21 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use std::{collections::{HashMap, HashSet}, fs::read_dir, path::{Path, PathBuf}, str::FromStr};
+use std::{
+  collections::{HashMap, HashSet},
+  fs::read_dir,
+  path::{Path, PathBuf},
+  str::FromStr,
+};
 
-use std::error::Error;
 use async_trait::async_trait;
 use derive_more::{Display, Error};
+use std::error::Error;
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 use serde_with::{serde_as, DisplayFromStr};
 
-use log::{info};
+use log::info;
 
 #[macro_use]
 extern crate lazy_static;
@@ -21,7 +26,7 @@ pub type VersionReq = semver::VersionReq;
 pub struct Version {
   pub major: u64,
   pub minor: u64,
-  pub patch: u64
+  pub patch: u64,
 }
 
 impl From<semver::Version> for Version {
@@ -29,7 +34,7 @@ impl From<semver::Version> for Version {
     Self {
       major: value.major,
       minor: value.minor,
-      patch: value.patch
+      patch: value.patch,
     }
   }
 }
@@ -57,7 +62,7 @@ impl FromStr for Version {
 pub struct TargetTriple {
   pub machine: String,
   pub vendor: String,
-  pub os: String
+  pub os: String,
 }
 
 impl TargetTriple {
@@ -78,7 +83,7 @@ impl TargetTriple {
     Self {
       machine: parts[0].to_string(),
       vendor: parts[1].to_string(),
-      os: parts[2 ..].join("-")
+      os: parts[2..].join("-"),
     }
   }
 
@@ -103,38 +108,34 @@ impl FromStr for TargetTriple {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Package {
   pub name: String,
-  pub versions: Vec<PackageVersion>
+  pub versions: Vec<PackageVersion>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ArtifactReference {
   pub url: String,
-  pub sha256: String
+  pub sha256: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommandArtifact {
-  pub entrypoint: String
+  pub entrypoint: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RendererArtifact {
-  
-}
+pub struct RendererArtifact {}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum IpcChannel {
   Stdio,
-  Tcp {
-    port: Option<usize>
-  },
+  Tcp { port: u16 },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GeneratorArtifact {
   pub entrypoint: String,
-  pub ipc_channel: IpcChannel
+  pub ipc_channel: IpcChannel,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -142,7 +143,33 @@ pub struct GeneratorArtifact {
 pub enum Artifact {
   Command(CommandArtifact),
   Renderer(RendererArtifact),
-  Generator(GeneratorArtifact)
+  Generator(GeneratorArtifact),
+}
+
+impl Artifact {
+  pub fn as_command(&self) -> Option<&CommandArtifact> {
+    if let Self::Command(cmd) = self {
+      Some(cmd)
+    } else {
+      None
+    }
+  }
+
+  pub fn as_renderer(&self) -> Option<&RendererArtifact> {
+    if let Self::Renderer(render) = self {
+      Some(render)
+    } else {
+      None
+    }
+  }
+
+  pub fn as_generator(&self) -> Option<&GeneratorArtifact> {
+    if let Self::Generator(gen) = self {
+      Some(gen)
+    } else {
+      None
+    }
+  }
 }
 
 #[serde_as]
@@ -152,40 +179,38 @@ pub struct PackageVersion {
   pub version: Version,
   #[serde_as(as = "HashMap<DisplayFromStr, _>")]
   pub target_artifacts: HashMap<TargetTriple, ArtifactReference>,
-  pub dependencies: Vec<String>
+  pub dependencies: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Repository {
-  pub packages: HashSet<String>
+  pub packages: HashSet<String>,
 }
 
 #[async_trait]
 pub trait Fetcher {
   async fn get_repository(&self) -> Result<Repository, Box<dyn Error>>;
   async fn get_package(&self, name: &str) -> Result<Package, Box<dyn Error>>;
-  async fn get_artifact(&self, artifact_ref: &ArtifactReference) -> Result<Box<[u8]>, Box<dyn Error>>;
+  async fn get_artifact(
+    &self,
+    artifact_ref: &ArtifactReference,
+  ) -> Result<Box<[u8]>, Box<dyn Error>>;
 }
 
 pub struct UrlFetcher {
-  base: String
+  base: String,
 }
 
 impl UrlFetcher {
   pub fn new(base: String) -> Self {
-    Self {
-      base
-    }
+    Self { base }
   }
 }
 
 #[derive(Display, Debug, Error)]
 pub enum GetArtifactError {
   #[display(fmt = "Checksum mismatch (expected: {}, actual: {})", expected, actual)]
-  ChecksumMismatch {
-    expected: String,
-    actual: String
-  }
+  ChecksumMismatch { expected: String, actual: String },
 }
 
 #[async_trait]
@@ -204,12 +229,15 @@ impl Fetcher for UrlFetcher {
     Ok(serde_json::from_str(res.text().await?.as_str())?)
   }
 
-  async fn get_artifact(&self, artifact_ref: &ArtifactReference) -> Result<Box<[u8]>, Box<dyn Error>> {
+  async fn get_artifact(
+    &self,
+    artifact_ref: &ArtifactReference,
+  ) -> Result<Box<[u8]>, Box<dyn Error>> {
     let res = reqwest::get(artifact_ref.url.as_str())
       .await?
       .error_for_status()?;
     let mut hasher = Sha256::default();
-    
+
     let bytes = res.bytes().await?;
     hasher.update(&bytes);
     let result = hasher.finalize();
@@ -218,10 +246,10 @@ impl Fetcher for UrlFetcher {
     if checksum != artifact_ref.sha256 {
       return Err(Box::new(GetArtifactError::ChecksumMismatch {
         expected: artifact_ref.sha256.clone(),
-        actual: checksum
-      }))
+        actual: checksum,
+      }));
     }
-    
+
     Ok(bytes.to_vec().into_boxed_slice())
   }
 }
@@ -229,16 +257,16 @@ impl Fetcher for UrlFetcher {
 #[derive(Serialize, Deserialize)]
 struct RemoteCache {
   repository: Repository,
-  packages: HashMap<String, Package>
+  packages: HashMap<String, Package>,
 }
 
 impl RemoteCache {
   pub fn new() -> Self {
     Self {
       repository: Repository {
-        packages: HashSet::new()
+        packages: HashSet::new(),
       },
-      packages: HashMap::new()
+      packages: HashMap::new(),
     }
   }
 }
@@ -246,13 +274,13 @@ impl RemoteCache {
 #[derive(Display, Debug, Error)]
 pub enum GetError {
   PackageNotFound,
-  VersionNotFound
+  VersionNotFound,
 }
 
 pub struct Manager<F: Fetcher> {
   fetcher: F,
   dir: PathBuf,
-  remote_cache: Option<RemoteCache>
+  remote_cache: Option<RemoteCache>,
 }
 
 impl<F: Fetcher> Manager<F> {
@@ -260,7 +288,7 @@ impl<F: Fetcher> Manager<F> {
     Self {
       fetcher,
       dir: dir.as_ref().to_path_buf(),
-      remote_cache: None
+      remote_cache: None,
     }
   }
 
@@ -296,7 +324,6 @@ impl<F: Fetcher> Manager<F> {
       }
       let package_name = path.file_name().unwrap().to_str().unwrap();
 
-
       let package_dir = read_dir(&path)?;
       for version in package_dir {
         let version = version?;
@@ -307,14 +334,21 @@ impl<F: Fetcher> Manager<F> {
 
         let version_name = path.file_name().unwrap().to_str().unwrap();
 
-        ret.push((package_name.to_string(), Version::from_str(version_name).unwrap()));
+        ret.push((
+          package_name.to_string(),
+          Version::from_str(version_name).unwrap(),
+        ));
       }
     }
 
     Ok(ret)
   }
 
-  pub async fn get(&mut self, name: &str, version_req: &semver::VersionReq) -> Result<(PathBuf, Version, Artifact), Box<dyn Error>> {
+  pub async fn get(
+    &mut self,
+    name: &str,
+    version_req: &semver::VersionReq,
+  ) -> Result<(PathBuf, Version, Artifact), Box<dyn Error>> {
     self.update().await?;
 
     let RemoteCache { packages, .. } = self.remote_cache.as_ref().unwrap();
@@ -331,7 +365,7 @@ impl<F: Fetcher> Manager<F> {
           continue;
         }
 
-        if version_req.matches(&package_version.version.clone().into()) {  
+        if version_req.matches(&package_version.version.clone().into()) {
           matching_versions.push(package_version);
         }
       }
@@ -355,10 +389,13 @@ impl<F: Fetcher> Manager<F> {
       dir.push(best_match.version.to_string());
 
       if !dir.exists() {
-        info!("{}@{} not found locally. Fetching...", name, best_match.version);
+        info!(
+          "{}@{} not found locally. Fetching...",
+          name, best_match.version
+        );
 
         let artifact_ref = best_match.target_artifacts.get(&triple).unwrap();
-        
+
         let bytes = self.fetcher.get_artifact(&artifact_ref).await?;
 
         let stream = std::io::Cursor::new(bytes);
@@ -368,14 +405,13 @@ impl<F: Fetcher> Manager<F> {
 
         archive.unpack(&dir)?;
         info!("Installed {}@{}.", name, best_match.version);
-        
       }
 
       dir.push("artifact.json");
       let artifact = std::fs::read_to_string(&dir)?;
       let artifact: Artifact = serde_json::from_str(artifact.as_str())?;
       dir.pop();
-      
+
       Ok((dir, best_match.version, artifact))
     } else {
       Err(Box::new(GetError::PackageNotFound))

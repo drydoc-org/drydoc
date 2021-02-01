@@ -3,6 +3,7 @@
 members = [
   "crates/drydoc",
   "crates/drydoc-gen",
+  "crates/drydoc-dev",
   "crates/drydoc-serve",
   "crates/drydoc-model",
   "crates/drydoc-ipc",

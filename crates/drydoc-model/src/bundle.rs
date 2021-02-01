@@ -4,11 +4,13 @@ use super::*;
 
 use page::{Id, Page};
 
+use crate::fs::Entry;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Manifest {
-  root: Id,
-  symbols: HashMap<String, Vec<Id>>,
-  pages: HashMap<Id, Page>
+  pub root: Id,
+  pub symbols: HashMap<String, Vec<Id>>,
+  pub pages: HashMap<Id, Page>,
 }
 
 impl Manifest {
@@ -23,12 +25,25 @@ impl Manifest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Bundle {
-  manifest: Manifest,
-  resources: fs::Folder
+  pub manifest: Manifest,
+  pub resources: fs::Folder,
 }
 
 impl Bundle {
-  pub fn merge(&mut self, other: Bundle) {
+  pub fn insert_entry<N: Into<String>, E: Into<Entry>>(
+    mut self,
+    name: N,
+    entry: E,
+  ) -> std::io::Result<Bundle> {
+    let mut virt_resources = self.resources.to_virtual()?;
+    virt_resources.insert(name, entry);
+    self.resources = virt_resources.into();
+    Ok(self)
+  }
+
+  pub fn merge(mut self, other: Bundle) -> std::io::Result<Bundle> {
     self.manifest.merge(other.manifest);
+    self.resources = self.resources.merge(other.resources)?;
+    Ok(self)
   }
 }

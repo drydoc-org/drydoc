@@ -1,6 +1,5 @@
 use clap::Clap;
 
-
 #[derive(Clap, Debug)]
 pub struct ServeOpts {
   #[clap(short, long, default_value = "html")]

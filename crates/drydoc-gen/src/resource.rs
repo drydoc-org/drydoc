@@ -3,13 +3,13 @@ use super::uri::Uri;
 use super::actor::{Actor, Addr, SendError};
 use std::sync::Arc;
 
-use tokio::sync::oneshot::{Sender, Receiver, channel};
-use tokio::sync::mpsc::{UnboundedSender, UnboundedReceiver};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::oneshot::{channel, Receiver, Sender};
 
 pub enum GetError {
   Io(tokio::io::Error),
   Receive,
-  Send(SendError)
+  Send(SendError),
 }
 
 impl From<tokio::io::Error> for GetError {
@@ -25,18 +25,21 @@ impl From<SendError> for GetError {
 }
 
 pub enum ResourceMsg<T>
-  where T: Send + Sync
+where
+  T: Send + Sync,
 {
-  Get(Sender<Result<T, GetError>>)
+  Get(Sender<Result<T, GetError>>),
 }
 
 pub trait Resource<T>: Actor<Msg = T>
-  where T: Send + Sync
+where
+  T: Send + Sync,
 {
 }
 
 impl<T> Addr<ResourceMsg<T>>
-  where T: 'static + Send + Sync
+where
+  T: 'static + Send + Sync,
 {
   pub async fn get(&self) -> Result<T, GetError> {
     let (tx, rx) = channel();
@@ -47,21 +50,21 @@ impl<T> Addr<ResourceMsg<T>>
 
     match rx.await {
       Ok(v) => v,
-      Err(_) => Err(GetError::Receive)
+      Err(_) => Err(GetError::Receive),
     }
   }
 }
 
 pub struct UriResource {
   uri: Uri,
-  contents: Option<Arc<[u8]>>
+  contents: Option<Arc<[u8]>>,
 }
 
 impl UriResource {
   pub fn new(uri: Uri) -> Self {
     Self {
       uri,
-      contents: None
+      contents: None,
     }
   }
 
@@ -100,24 +103,24 @@ pub struct TransformResource<T, U, F>
 where
   T: Send + Sync,
   U: Send + Sync + Clone,
-  F: Fn(T) -> U + Send
+  F: Fn(T) -> U + Send,
 {
   underlying: Addr<ResourceMsg<T>>,
   transformer: F,
-  value: Option<U>
+  value: Option<U>,
 }
 
 impl<T, U, F> TransformResource<T, U, F>
 where
   T: 'static + Send + Sync,
   U: Send + Sync + Clone,
-  F: Fn(T) -> U + Send
+  F: Fn(T) -> U + Send,
 {
   pub fn wrap<A: Into<Addr<ResourceMsg<T>>>, G: Into<F>>(underlying: A, transformer: G) -> Self {
     Self {
       underlying: underlying.into(),
       transformer: transformer.into(),
-      value: None
+      value: None,
     }
   }
 
@@ -133,7 +136,7 @@ where
                 let value = (self.transformer)(value);
                 self.value = Some(value.clone());
                 let _ = sender.send(Ok(value));
-              },
+              }
               Err(err) => {
                 let _ = sender.send(Err(err));
               }
@@ -149,7 +152,7 @@ impl<T, U, F> Actor for TransformResource<T, U, F>
 where
   T: 'static + Send + Sync,
   U: 'static + Send + Sync + Clone,
-  F: 'static + Fn(T) -> U + Send
+  F: 'static + Fn(T) -> U + Send,
 {
   type Msg = ResourceMsg<U>;
 

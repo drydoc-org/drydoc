@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use std::fmt::{Display, Formatter};
 
@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use derive_more::*;
-
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]
 pub struct Id(pub String);
@@ -43,7 +42,7 @@ pub struct Page {
   pub metadata: HashMap<String, String>,
   pub children: HashSet<Id>,
   pub url: Option<String>,
-  pub hidden: Option<bool>
+  pub hidden: Option<bool>,
 }
 
 impl Page {
@@ -59,7 +58,7 @@ pub struct PageBuilder {
   metadata: HashMap<String, String>,
   children: HashSet<Id>,
   url: Option<String>,
-  hidden: Option<bool>
+  hidden: Option<bool>,
 }
 
 #[derive(Display, Debug, Error)]
@@ -78,7 +77,7 @@ impl PageBuilder {
       url: None,
       hidden: None,
       metadata: HashMap::new(),
-      children: HashSet::new()
+      children: HashSet::new(),
     }
   }
 
@@ -121,23 +120,23 @@ impl PageBuilder {
     self.hidden = Some(hidden.into());
     self
   }
-  
+
   pub fn build(mut self) -> Result<Page, BuildError> {
     let id = match self.id.take() {
       Some(id) => id,
-      None => return Err(BuildError::MissingId)
+      None => return Err(BuildError::MissingId),
     };
 
     let name = match self.name.take() {
       Some(name) => name,
-      None => return Err(BuildError::MissingName)
+      None => return Err(BuildError::MissingName),
     };
 
     let content_type = match self.content_type.take() {
       Some(content_type) => content_type,
-      None => return Err(BuildError::MissingContentType)
+      None => return Err(BuildError::MissingContentType),
     };
-    
+
     Ok(Page {
       id,
       name,
@@ -145,8 +144,7 @@ impl PageBuilder {
       url: self.url,
       hidden: self.hidden,
       metadata: self.metadata,
-      children: self.children
+      children: self.children,
     })
   }
 }
-

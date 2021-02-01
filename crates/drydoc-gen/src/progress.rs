@@ -1,6 +1,6 @@
 use crate::actor::{Actor, Addr, Receiver};
 
-use tokio::sync::oneshot::{Sender, channel};
+use tokio::sync::oneshot::{channel, Sender};
 
 use std::collections::{HashMap, HashSet};
 
@@ -9,28 +9,27 @@ pub enum ProgressMsg {
     parent: Option<u64>,
     name: String,
     details: Option<String>,
-    sender: Sender<Result<u64, ()>>
+    sender: Sender<Result<u64, ()>>,
   },
   FinishTask {
-    id: u64
-  }
+    id: u64,
+  },
 }
 
 struct Task {
   parent: Option<u64>,
   name: String,
   details: Option<String>,
-  children: HashSet<u64>
+  children: HashSet<u64>,
 }
 
 impl Task {
-
   pub fn root(name: String, details: Option<String>) -> Self {
     Self {
       name,
       details,
       parent: None,
-      children: HashSet::new()
+      children: HashSet::new(),
     }
   }
 
@@ -39,7 +38,7 @@ impl Task {
       name,
       details,
       parent: Some(parent),
-      children: HashSet::new()
+      children: HashSet::new(),
     }
   }
 }
@@ -47,7 +46,7 @@ impl Task {
 pub struct Progress {
   roots: HashSet<u64>,
   tasks: HashMap<u64, Task>,
-  task_iter: u64
+  task_iter: u64,
 }
 
 impl Progress {
@@ -55,26 +54,29 @@ impl Progress {
     Self {
       roots: HashSet::new(),
       tasks: HashMap::new(),
-      task_iter: 0
+      task_iter: 0,
     }
   }
 
-  fn update(&self) {
-    
-  }
+  fn update(&self) {}
 
   async fn run(mut self, mut rx: Receiver<ProgressMsg>) {
     while let Some(msg) = rx.recv().await {
       match msg {
-        ProgressMsg::StartTask { parent, name, details, sender } => {
+        ProgressMsg::StartTask {
+          parent,
+          name,
+          details,
+          sender,
+        } => {
           let id = self.task_iter;
           self.task_iter += 1;
-          
+
           if let Some(parent) = &parent {
             match self.tasks.get_mut(parent) {
               Some(parent) => {
                 parent.children.insert(id);
-              },
+              }
               None => {
                 let _ = sender.send(Err(()));
               }
@@ -82,18 +84,21 @@ impl Progress {
           } else {
             self.roots.insert(id);
           }
-          
-          self.tasks.insert(id, Task {
-            parent,
-            name,
-            details,
-            children: HashSet::new()
-          });
-        },
+
+          self.tasks.insert(
+            id,
+            Task {
+              parent,
+              name,
+              details,
+              children: HashSet::new(),
+            },
+          );
+        }
         ProgressMsg::FinishTask { id } => {
           let task = match self.tasks.remove(&id) {
             Some(task) => task,
-            None => continue
+            None => continue,
           };
 
           if let Some(parent) = &task.parent {
@@ -120,9 +125,19 @@ impl Actor for Progress {
 }
 
 impl Addr<ProgressMsg> {
-  pub async fn start_task(&self, parent: Option<u64>, name: String, details: Option<String>) -> Result<u64, ()> {
+  pub async fn start_task(
+    &self,
+    parent: Option<u64>,
+    name: String,
+    details: Option<String>,
+  ) -> Result<u64, ()> {
     let (tx, rx) = channel();
-    let _ = self.send(ProgressMsg::StartTask { parent, name, details, sender: tx });
+    let _ = self.send(ProgressMsg::StartTask {
+      parent,
+      name,
+      details,
+      sender: tx,
+    });
     rx.await.unwrap()
   }
 

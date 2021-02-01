@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 mod log;
 pub use log::*;
@@ -9,9 +9,11 @@ pub use encoding::*;
 mod message;
 pub use message::*;
 
+pub mod bundle;
+pub mod client;
 pub mod decl;
 pub mod fs;
+pub mod ns;
 pub mod page;
-pub mod bundle;
 pub mod server;
-pub mod client;
+pub mod style;
